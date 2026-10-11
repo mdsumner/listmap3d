@@ -1,0 +1,1102 @@
+<title>LISTmap 3D Native</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: full-bleed WebGL canvas; a survey-sheet panel docks left on desktop, slides up from the bottom on phones. */
+:root {
+  --ground: #e9ece6;
+  --sheet: #f7f8f4;
+  --ink: #1d2620;
+  --ink-soft: #56625a;
+  --rule: #c9d0c6;
+  --accent: #1f6f8b;
+  --accent-ink: #ffffff;
+  --ok: #2f7d4f;
+  --warn: #a8650f;
+  --bad: #b3261e;
+  --shadow: 0 1px 2px rgba(20, 30, 24, .12), 0 6px 24px rgba(20, 30, 24, .12);
+  --f-display: "Archivo Narrow", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --f-body: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --f-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #121714; --sheet: #1a201c; --ink: #e4e9e2; --ink-soft: #9aa69d; --rule: #323b35;
+    --accent: #5fb3cf; --accent-ink: #06141a; --ok: #6cc18f; --warn: #e3a64a; --bad: #f08a80;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 28px rgba(0,0,0,.45);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #121714; --sheet: #1a201c; --ink: #e4e9e2; --ink-soft: #9aa69d; --rule: #323b35;
+  --accent: #5fb3cf; --accent-ink: #06141a; --ok: #6cc18f; --warn: #e3a64a; --bad: #f08a80;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 28px rgba(0,0,0,.45);
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--ground); color: var(--ink); font-family: var(--f-body); font-size: 14px; margin: 0; overflow: hidden; }
+#view { position: absolute; inset: 0; background: #cfdcdf; touch-action: none; }
+#view canvas { display: block; width: 100%; height: 100%; }
+
+#panel {
+  position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); left: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  width: 330px; max-width: calc(100% - 24px);
+  background: var(--sheet); color: var(--ink); border: 1px solid var(--rule); border-radius: 6px; box-shadow: var(--shadow);
+  display: flex; flex-direction: column; z-index: 2; overflow: hidden;
+}
+#panel header { padding: 14px 16px 10px; border-bottom: 1px solid var(--rule); display: grid; gap: 4px; }
+#panel h1 { font-family: var(--f-display); font-weight: 700; font-size: 22px; letter-spacing: .01em; margin: 0; line-height: 1.05; text-wrap: balance; }
+#panel h1 span { color: var(--accent); }
+.sub { color: var(--ink-soft); font-size: 12.5px; line-height: 1.4; margin: 0; }
+.scroll { overflow-y: auto; overflow-x: hidden; padding: 4px 16px 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-content: start; min-height: 0; }
+.scroll > *, .section > * { min-width: 0; }
+.section { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
+.label { font-family: var(--f-display); font-weight: 600; font-size: 12px; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-soft); padding-top: 10px; }
+
+.gauge { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-family: var(--f-data); font-size: 12px; font-variant-numeric: tabular-nums; margin: 0; }
+.gauge dt { color: var(--ink-soft); }
+.gauge dd { margin: 0; text-align: right; overflow-wrap: anywhere; }
+.ladder { display: grid; gap: 2px; margin-top: 2px; }
+.ladder i { height: 8px; background: var(--rule); border-radius: 1px; }
+.ladder i.on { background: var(--accent); }
+.ladder i.some { background: color-mix(in srgb, var(--accent) 40%, var(--rule)); }
+.ladder-cap { display: flex; justify-content: space-between; font-family: var(--f-data); font-size: 10.5px; color: var(--ink-soft); }
+
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+.seg button { font: 500 12.5px var(--f-body); background: transparent; color: var(--ink); border: 0; border-right: 1px solid var(--rule); padding: 7px 4px; cursor: pointer; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--sheet); }
+.seg button:disabled { color: var(--ink-soft); opacity: .5; cursor: not-allowed; }
+.row { display: flex; align-items: center; gap: 10px; }
+.row label { flex: 0 0 auto; font-size: 12.5px; color: var(--ink-soft); }
+.row input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
+.row output { font-family: var(--f-data); font-size: 12px; width: 3.2em; text-align: right; }
+select, input[type=text] { font: 12.5px var(--f-body); padding: 5px; background: var(--sheet); color: var(--ink); border: 1px solid var(--rule); border-radius: 4px; min-width: 0; }
+#crs { width: 100%; }
+#crs-custom { width: 100%; box-sizing: border-box; font-family: var(--f-data); font-size: 11.5px; }
+
+.layers { display: grid; gap: 2px; }
+.layer { display: grid; grid-template-columns: 14px 1fr auto; align-items: center; gap: 8px; padding: 6px 4px; border-radius: 4px; }
+.layer:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.layer input { margin: 0; accent-color: var(--accent); }
+.layer .name { font-size: 13px; display: flex; align-items: center; gap: 7px; min-width: 0; }
+.layer .swatch { width: 10px; height: 10px; border-radius: 2px; flex: 0 0 auto; }
+.chip { font-family: var(--f-data); font-size: 10.5px; padding: 2px 6px; border-radius: 3px; border: 1px solid var(--rule); color: var(--ink-soft); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.chip.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.chip.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.chip.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+.chip.idle { opacity: .75; }
+
+.add { display: flex; gap: 6px; }
+.add select { flex: 1; }
+.btn { font: 600 12.5px var(--f-body); background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 4px; padding: 6px 10px; cursor: pointer; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--rule); }
+button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.note { font-size: 12.5px; line-height: 1.45; color: var(--ink-soft); margin: 0; }
+.note strong { color: var(--ink); font-weight: 600; }
+.banner { font-size: 12.5px; line-height: 1.45; padding: 9px 10px; border-radius: 4px; border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent); background: color-mix(in srgb, var(--warn) 10%, transparent); color: var(--ink); }
+.foot { font-size: 11px; color: var(--ink-soft); border-top: 1px solid var(--rule); padding: 8px 16px; line-height: 1.4; }
+.foot a { color: inherit; }
+
+#toggle { display: none; }
+#busy { position: absolute; right: 12px; top: calc(12px + env(safe-area-inset-top, 0px)); z-index: 2; font-family: var(--f-data); font-size: 11.5px; background: var(--sheet); color: var(--ink); border: 1px solid var(--rule); border-radius: 4px; padding: 5px 9px; box-shadow: var(--shadow); }
+#pop { position: absolute; z-index: 3; background: var(--sheet); color: var(--ink); font-size: 12px; border-radius: 5px; box-shadow: var(--shadow); border: 1px solid var(--rule); padding: 10px 12px; max-width: 300px; transform: translate(-50%, calc(-100% - 10px)); }
+#pop button { position: absolute; top: 4px; right: 6px; background: transparent; border: 0; color: var(--ink-soft); font-size: 16px; cursor: pointer; }
+.pop h3 { font: 600 13px var(--f-display); letter-spacing: .03em; margin: 0 18px 6px 0; }
+.pop table { border-collapse: collapse; font-family: var(--f-data); font-size: 11px; }
+.pop td { padding: 1px 6px 1px 0; vertical-align: top; overflow-wrap: anywhere; }
+.pop td:first-child { color: var(--ink-soft); white-space: nowrap; }
+#readout:empty { display: none; }
+#readout { position: absolute; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 2; font-family: var(--f-data); font-size: 11px; background: color-mix(in srgb, var(--sheet) 88%, transparent); color: var(--ink); border: 1px solid var(--rule); border-radius: 4px; padding: 4px 8px; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 640px) {
+  #panel { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-width: none; max-height: 58%; border-radius: 10px 10px 0 0; padding-bottom: env(safe-area-inset-bottom, 0px); }
+  #panel.collapsed .scroll, #panel.collapsed .foot { display: none; }
+  #toggle { display: block; position: absolute; right: 12px; top: 12px; font: 600 12px var(--f-body); background: transparent; color: var(--ink-soft); border: 1px solid var(--rule); border-radius: 4px; padding: 4px 8px; }
+  #panel header { padding-right: 80px; }
+  #readout { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div id="view" role="application" aria-label="3D terrain view of Tasmania"></div>
+<div id="busy" hidden>Loading</div>
+<div id="readout" aria-live="off"></div>
+<div id="pop" class="pop" hidden><button type="button" id="pop-close" aria-label="Close">&times;</button><div id="pop-body"></div></div>
+<aside id="panel">
+  <header>
+    <h1>LISTmap 3D <span>Native</span></h1>
+    <p class="sub" id="modeline">The 2 m DEM's own tile pyramid drawn as meshes in the CRS of your choice, with LIST WFS layers draped on it.</p>
+    <button id="toggle" type="button" aria-expanded="true">Hide</button>
+  </header>
+  <div class="scroll">
+    <div id="sandbox" class="banner" hidden></div>
+
+    <section class="section" aria-labelledby="crs-h">
+      <div class="label" id="crs-h">Projection</div>
+      <select id="crs" aria-label="View projection"></select>
+      <input id="crs-custom" type="text" hidden placeholder="+proj=laea +lat_0=-42 +lon_0=146.5 +units=m" aria-label="Custom proj4 string (metric)">
+      <p class="note" id="crs-note"></p>
+    </section>
+
+    <section class="section" aria-labelledby="lod-h">
+      <div class="label" id="lod-h">Level of detail and cost</div>
+      <dl class="gauge">
+        <dt>Equivalent zoom</dt><dd id="g-zoom">-</dd>
+        <dt>Finest DEM level</dt><dd id="g-level">-</dd>
+        <dt>Tiles drawn</dt><dd id="g-tiles">-</dd>
+        <dt>Triangles</dt><dd id="g-tris">-</dd>
+        <dt>Tile build</dt><dd id="g-build">-</dd>
+        <dt>Frame</dt><dd id="g-frame">-</dd>
+        <dt>Bytes read</dt><dd id="g-bytes">0</dd>
+      </dl>
+      <div class="ladder" id="ladder" aria-hidden="true"></div>
+      <div class="ladder-cap"><span id="cap-lo">2 m</span><span>overviews in view</span><span id="cap-hi">2048 m</span></div>
+    </section>
+
+    <section class="section" aria-labelledby="view-h">
+      <div class="label" id="view-h">Surface</div>
+      <div class="seg" role="group" aria-label="Base layer">
+        <button type="button" id="base-relief" aria-pressed="true">Relief</button>
+        <button type="button" id="base-ortho" aria-pressed="false">Orthophoto</button>
+        <button type="button" id="base-topo" aria-pressed="false">Topographic</button>
+      </div>
+      <div class="row"><label for="exag">Exaggeration</label><input id="exag" type="range" min="1" max="3" step="0.1" value="1.3"><output id="exag-out">1.3x</output></div>
+      <div class="row"><label for="detail">Detail</label><input id="detail" type="range" min="1" max="6" step="0.5" value="3"><output id="detail-out">3px</output></div>
+      <button type="button" class="btn ghost" id="reset">Back to kunanyi</button>
+    </section>
+
+    <section class="section" aria-labelledby="ov-h">
+      <div class="label" id="ov-h">LIST overlays (WFS)</div>
+      <div class="layers" id="layers"></div>
+      <div class="add">
+        <select id="extra" aria-label="Add another WFS layer"></select>
+        <button type="button" class="btn" id="extra-add">Add</button>
+      </div>
+      <p class="note">Overlays are drawn into each terrain tile's texture in the view projection, so they sit exactly on the ground. They still page in only when you are close: the WFS has no overviews.</p>
+    </section>
+  </div>
+  <div class="foot">DEM and overlays: The LIST &copy; State of Tasmania, CC BY 3.0 AU. DEM copy on <a href="https://source.coop/alexgleith/tasmania-dem-2m" target="_blank" rel="noopener">Source Cooperative</a>. Drag to pan, right-drag or two fingers to rotate and tilt.</div>
+</aside>
+
+<script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/proj4@2.11.0/dist/proj4.js"></script>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { MapControls } from "three/addons/controls/MapControls.js";
+
+// ---------------------------------------------------------------------------
+// Configuration
+// ---------------------------------------------------------------------------
+const DEM_LIVE = {
+  url: "https://s3.us-west-2.amazonaws.com/us-west-2.opendata.source.coop/alexgleith/tasmania-dem-2m/Tasmania_Statewide_2m_DEM_14-08-2021.tif",
+  scale: 1,
+  label: "Statewide 2 m DEM, streamed live from Source Cooperative"
+};
+// Fallback for pages that cannot reach S3: kunanyi / Hobart at 4 m, int16 decimetres.
+const DEM_SNAPSHOT = {
+  urls: ["../data/kunanyi_4m_dm.tif", "data/kunanyi_4m_dm.tif"],
+  // Base64 text parts for hosts that do not serve .tif files (claude.ai artifacts); built by tools/build.py.
+  parts: ["kunanyi_4m_dm.b64.0.txt", "kunanyi_4m_dm.b64.1.txt"],
+  scale: 0.1,
+  label: "Bundled kunanyi / Hobart snapshot (4 m)"
+};
+const DEM_CRS = "EPSG:28355";
+const WFS_URL = "https://services.thelist.tas.gov.au/arcgis/services/Public/OpenDataWFS/MapServer/WFSServer";
+const WFS_NS = "Public_OpenDataWFS:";
+const LIST_EXPORT = {
+  ortho: "https://services.thelist.tas.gov.au/arcgis/rest/services/Basemaps/Orthophoto/MapServer/export",
+  topo: "https://services.thelist.tas.gov.au/arcgis/rest/services/Basemaps/Topographic/MapServer/export"
+};
+
+// View projections. `wkid` lets ArcGIS export imagery straight into that CRS; custom ones have none.
+const CRS_LIST = [
+  { id: "EPSG:28355", label: "GDA94 / MGA zone 55 (the DEM's own grid)", wkid: 28355, def: "+proj=utm +zone=55 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs" },
+  { id: "TAS:LAEA", label: "Lambert azimuthal equal-area, centred on Tasmania", wkid: null, def: "+proj=laea +lat_0=-42 +lon_0=146.5 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs" },
+  { id: "EPSG:3112", label: "GDA94 / Geoscience Australia Lambert", wkid: 3112, def: "+proj=lcc +lat_0=0 +lon_0=134 +lat_1=-18 +lat_2=-36 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs" },
+  { id: "EPSG:3857", label: "Web Mercator (stretched about 1.37x here)", wkid: 3857, def: "+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +no_defs" },
+  { id: "TAS:OBLIQUE", label: "Oblique Mercator along the east coast", wkid: null, def: "+proj=omerc +lat_0=-42 +lonc=147.5 +alpha=-30 +gamma=0 +k=1 +x_0=0 +y_0=0 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs" },
+  { id: "custom", label: "Custom proj4 string", wkid: null, def: null }
+];
+proj4.defs(DEM_CRS, CRS_LIST[0].def);
+
+// Curated overlays. minzoom (MapLibre-style zoom) is the local-bound constraint: below it a layer is not requested.
+const OVERLAYS = [
+  { type: "LIST_Transport_Segments", label: "Roads and tracks", kind: "line", minzoom: 13, color: "#d9480f" },
+  { type: "LIST_Hydrographic_Lines", label: "Watercourses", kind: "line", minzoom: 13, color: "#1c7ed6" },
+  { type: "LIST_Contours_10m", label: "Contours 10 m", kind: "line", minzoom: 14, color: "#7a5c2e" },
+  { type: "LIST_Cadastral_Parcels", label: "Cadastral parcels", kind: "fill", minzoom: 15, color: "#f2c94c" },
+  { type: "LIST_Building_Polygons_2D", label: "Buildings", kind: "fill", minzoom: 15, color: "#c2255c" },
+  { type: "LIST_Land_Tenure", label: "Land tenure", kind: "fill", minzoom: 13, color: "#2b8a3e" },
+  { type: "TASVEG_4.0", label: "Vegetation (TASVEG 4)", kind: "fill", minzoom: 14, color: "#5c940d" },
+  { type: "LIST_Nomenclature", label: "Place names", kind: "point", minzoom: 12, color: "#212529" },
+  { type: "LIST_Address_Points", label: "Address points", kind: "point", minzoom: 16, color: "#6741d9" },
+  { type: "LIST_Local_Government_Areas", label: "Council areas", kind: "line", minzoom: 9, color: "#495057" }
+];
+const ALL_TYPES = ["Climate_Futures_Tasmania_-_Scenario_A2","Climate_Futures_Tasmania_-_Scenario_B1","Interim_Planning_Scheme_-_Overlays","Interim_Planning_Scheme_-_Zoning_Boundaries","Interim_Planning_Scheme_-__Zoning","LIDAR_Climate_Futures_Index","LiDAR_Coal_Mines_Port_Arthur_Index","LiDAR_DPAC_Coastal_Index","LiDAR_Mt._Wellington_Index","LIST_Address_Points","LIST_Authority_Land","LIST_Boundary_Segments","LIST_Building_Points","LIST_Building_Polygons_2D","LIST_Cadastral_Parcels","LIST_Coastline__MHWM_","LIST_Contours_10m","LIST_Contours_5m","LIST_Crown_Leases","LIST_Crown_Licences","LIST_Easements__not_a_maintained_dataset_","LIST_Electoral_Divisions","LIST_Hydrographic_Areas","LIST_Hydrographic_Lines","LIST_Hydrographic_Points","LIST_Land_Districts","LIST_Land_Tenure","LIST_Legislative_Council_Divisions","LIST_Local_Government_Areas","LIST_Local_Government_Reserves","LIST_Locality_and_Postcode_Areas","LIST_Marine_Leases","LIST_Marine_Nature_Reserves","LIST_Named_Feature_Extents","LIST_Nomenclature","LIST_Parish_and_Town_Boundaries","LIST_Points_of_Interest","LIST_Private_Reserves","LIST_Public_Land_Classification","LIST_Ramsar_Wetlands","LIST_Survey_Control","LIST_Transport_Nodes","LIST_Transport_Segments","LIST_Water_Districts","LIST_Water_Management_Areas","Land_Tasmania_Aerial_Photography_Centres","Land_Tasmania_Aerial_Photography_Coverages","TASMAP_1_to_100000_Map_Index","TASMAP_1_to_25000_Map_Index","TASMAP_1_to_250000_Map_Index","TASMAP_1_to_5000_Orthophoto_Index","TASMAP_1_to_50000_Map_Index","TASMAP_Towns_Street_Atlas_Page_Index__v8_","LIST_Water_Management_Plan_Areas","TASVEG_4.0","TASVEG_5.0"];
+
+const GRID = 128;            // mesh cells per tile edge
+const OVERLAY_PX = 512;      // overlay texture size per tile
+const MAX_BUILDS = 6;        // concurrent tile builds
+const CACHE_TILES = 700;
+const PAGE_SIZE = 1000, MAX_PAGES = 4, MAX_CELLS = 16;
+const R = 6378137, HALF = Math.PI * R;
+const HOME = { lon: 147.262, lat: -42.902, dist: 9000, pitch: 58, bearing: -38 };
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+const $ = (id) => document.getElementById(id);
+const fmtBytes = (n) => n < 1e6 ? (n / 1e3).toFixed(0) + " kB" : (n / 1e6).toFixed(1) + " MB";
+const merc2ll = (x, y) => [x / R * 180 / Math.PI, (2 * Math.atan(Math.exp(y / R)) - Math.PI / 2) * 180 / Math.PI];
+const ll2merc = (lon, lat) => [lon * Math.PI / 180 * R, Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) * R];
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let bytesRead = 0;
+const nativeFetch = window.fetch.bind(window);
+window.fetch = async (...args) => {
+  const res = await nativeFetch(...args);
+  const len = Number(res.headers.get("content-length"));
+  if (len) { bytesRead += len; $("g-bytes").textContent = fmtBytes(bytesRead); }
+  return res;
+};
+async function withTimeout(promise, ms) {
+  let t;
+  const timer = new Promise((_, rej) => { t = setTimeout(() => rej(new Error("timeout")), ms); });
+  try { return await Promise.race([promise, timer]); } finally { clearTimeout(t); }
+}
+
+// ---------------------------------------------------------------------------
+// DEM
+// ---------------------------------------------------------------------------
+let dem = null; // { cfg, live, levels: [{image, w, h, rx, ry}], ox, oy, nodata, pool }
+
+async function openDem() {
+  try {
+    const tif = await withTimeout(GeoTIFF.fromUrl(DEM_LIVE.url, { cacheSize: 512 }), 15000);
+    return { tif, cfg: DEM_LIVE, live: true };
+  } catch (e) {
+    console.warn("Live DEM unavailable, using bundled snapshot", e);
+    let buf = null;
+    for (const u of DEM_SNAPSHOT.urls) {
+      try { const r = await nativeFetch(u); if (r.ok) { buf = await r.arrayBuffer(); break; } } catch (e2) { /* next */ }
+    }
+    if (!buf) {
+      let b64 = "";
+      for (const part of DEM_SNAPSHOT.parts) {
+        const r = await nativeFetch(part);
+        if (!r.ok) throw new Error("No DEM reachable: live COG blocked and snapshot missing");
+        b64 += (await r.text()).trim();
+      }
+      const bin = atob(b64), bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      buf = bytes.buffer;
+    }
+    bytesRead += buf.byteLength;
+    return { tif: await GeoTIFF.fromArrayBuffer(buf), cfg: DEM_SNAPSHOT, live: false };
+  }
+}
+
+async function initDem() {
+  const { tif, cfg, live } = await openDem();
+  const n = await tif.getImageCount();
+  const base = await tif.getImage(0);
+  const [ox, oy] = base.getOrigin();
+  const [rx, ry] = base.getResolution();
+  const W0 = base.getWidth(), H0 = base.getHeight();
+  const levels = [];
+  for (let i = 0; i < n; i++) {
+    const im = i === 0 ? base : await tif.getImage(i);
+    if (im.fileDirectory.NewSubfileType & 4) continue;
+    levels.push({ image: im, w: im.getWidth(), h: im.getHeight(), rx: rx * W0 / im.getWidth(), ry: Math.abs(ry) * H0 / im.getHeight() });
+  }
+  let pool = null;
+  try { pool = new GeoTIFF.Pool(); } catch (e) { console.warn("No decoder pool; decoding on the main thread", e); }
+  dem = { cfg, live, levels, ox, oy, nodata: base.getGDALNoData(), pool,
+    extent: [ox, oy - H0 * Math.abs(ry), ox + W0 * rx, oy] };
+}
+
+function pickLevel(spacing) {
+  let best = 0;
+  for (let i = 0; i < dem.levels.length; i++) if (dem.levels[i].rx <= spacing) best = i;
+  return best;
+}
+
+// ---------------------------------------------------------------------------
+// View CRS
+// ---------------------------------------------------------------------------
+let crs = null; // { id, wkid, def, native, toLL, fromLL, toDem, root: {x0,y0,size}, ox, oy }
+
+function setupCrs(entry, customDef) {
+  const def = entry.id === "custom" ? customDef : entry.def;
+  const native = entry.id === DEM_CRS;
+  const p = proj4(def);
+  const toDem = native ? null : proj4(def, DEM_CRS);
+  const c = { id: entry.id, wkid: entry.wkid, def, native,
+    toLL: (x, y) => p.inverse([x, y]), fromLL: (lon, lat) => p.forward([lon, lat]),
+    toDem: native ? (x, y) => [x, y] : (x, y) => toDem.forward([x, y]),
+    fromDem: native ? (x, y) => [x, y] : (x, y) => toDem.inverse([x, y]) };
+  // Extent of the DEM in the view CRS, densified along its edges.
+  const [ex0, ey0, ex1, ey1] = dem.extent;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for (let i = 0; i <= 32; i++) for (const [ex, ey] of [[ex0 + (ex1 - ex0) * i / 32, ey0], [ex0 + (ex1 - ex0) * i / 32, ey1], [ex0, ey0 + (ey1 - ey0) * i / 32], [ex1, ey0 + (ey1 - ey0) * i / 32]]) {
+    const [x, y] = c.fromDem(ex, ey);
+    if (!isFinite(x) || !isFinite(y)) continue;
+    x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+  }
+  if (!isFinite(x0)) throw new Error("That projection cannot represent Tasmania");
+  const size = Math.max(x1 - x0, y1 - y0);
+  c.root = { x0: (x0 + x1) / 2 - size / 2, y0: (y0 + y1) / 2 - size / 2, size };
+  c.ox = (x0 + x1) / 2; c.oy = (y0 + y1) / 2; // world origin, keeps float32 positions small
+  crs = c;
+}
+// View CRS <-> three.js world: x east, y up, z south.
+const toWorld = (x, y) => [x - crs.ox, -(y - crs.oy)];
+const fromWorld = (wx, wz) => [wx + crs.ox, crs.oy - wz];
+
+// ---------------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------------
+const container = $("view");
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+container.append(renderer.domElement);
+const scene = new THREE.Scene();
+const SKY = new THREE.Color("#cfdcdf");
+scene.background = SKY;
+const camera = new THREE.PerspectiveCamera(45, 1, 1, 1e7);
+const controls = new MapControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.12;
+controls.maxPolarAngle = Math.PI * 0.47;
+controls.zoomToCursor = true;
+const terrain = new THREE.Group();
+terrain.scale.y = 1.3;
+scene.add(terrain);
+let needsRender = true;
+controls.addEventListener("change", () => { needsRender = true; });
+
+// Hypsometric ramp as a 1D texture, -50 m .. 1650 m.
+const RAMP = [[-50, "#9fb7bf"], [0.5, "#a9c3c7"], [1, "#c9d8b6"], [80, "#b7cd98"], [250, "#93b07a"], [500, "#7f9a64"], [800, "#a39a6e"], [1100, "#b9a88c"], [1300, "#d8d0c4"], [1650, "#f2efea"]];
+const RAMP_MIN = -50, RAMP_MAX = 1650;
+const rampTex = (() => {
+  const n = 512, data = new Uint8Array(n * 4);
+  const cols = RAMP.map(([h, c]) => [h, new THREE.Color(c)]);
+  for (let i = 0; i < n; i++) {
+    const h = RAMP_MIN + (RAMP_MAX - RAMP_MIN) * i / (n - 1);
+    let k = 0; while (k < cols.length - 2 && h > cols[k + 1][0]) k++;
+    const [h0, c0] = cols[k], [h1, c1] = cols[k + 1];
+    const t = Math.min(1, Math.max(0, (h - h0) / (h1 - h0)));
+    const c = c0.clone().lerp(c1, t);
+    data.set([c.r * 255, c.g * 255, c.b * 255, 255], i * 4);
+  }
+  const t = new THREE.DataTexture(data, n, 1); t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; t.magFilter = THREE.LinearFilter; t.minFilter = THREE.LinearFilter;
+  return t;
+})();
+const EMPTY_TEX = (() => { const t = new THREE.DataTexture(new Uint8Array([0, 0, 0, 0]), 1, 1); t.needsUpdate = true; return t; })();
+
+const uniformsShared = {
+  uRamp: { value: rampTex }, uSun: { value: new THREE.Vector3(-0.55, 0.62, -0.55).normalize() },
+  uBaseMode: { value: 0 }, uFogColor: { value: SKY }, uFogDensity: { value: 0.00002 }
+};
+const VERT = `
+  attribute float aH;
+  varying float vH; varying vec3 vN; varying vec2 vUv; varying float vDepth;
+  void main() {
+    vH = aH; vUv = uv;
+    vN = normalize(mat3(modelMatrix) * normal);
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    vDepth = -mv.z;
+    gl_Position = projectionMatrix * mv;
+  }`;
+const FRAG = `
+  uniform sampler2D uRamp; uniform sampler2D uBase; uniform sampler2D uOverlay;
+  uniform vec3 uSun; uniform int uBaseMode; uniform float uHasBase; uniform vec3 uFogColor; uniform float uFogDensity;
+  varying float vH; varying vec3 vN; varying vec2 vUv; varying float vDepth;
+  void main() {
+    vec3 n = normalize(vN);
+    float lam = clamp(dot(n, uSun), 0.0, 1.0);
+    float shade = 0.42 + 0.72 * lam;
+    vec3 col;
+    if (uBaseMode == 0 || uHasBase < 0.5) {
+      col = texture2D(uRamp, vec2(clamp((vH - ${RAMP_MIN.toFixed(1)}) / ${(RAMP_MAX - RAMP_MIN).toFixed(1)}, 0.0, 1.0), 0.5)).rgb * shade;
+    } else {
+      col = texture2D(uBase, vUv).rgb * (0.78 + 0.32 * lam);
+    }
+    vec4 ov = texture2D(uOverlay, vUv);
+    col = mix(col, ov.rgb, ov.a);
+    float f = 1.0 - exp(-pow(vDepth * uFogDensity, 2.0));
+    gl_FragColor = vec4(mix(col, uFogColor, clamp(f, 0.0, 0.85)), 1.0);
+    #include <colorspace_fragment>
+  }`;
+
+// ---------------------------------------------------------------------------
+// Quadtree of tiles in the view CRS. Each tile samples the DEM at the overview level that matches its spacing.
+// ---------------------------------------------------------------------------
+const tiles = new Map(); // key -> tile
+let frameNo = 0, buildMsAvg = 0, activeBuilds = 0;
+const queue = new Map(); // key -> {tile, priority}
+
+function tileKey(d, i, j) { return d + "/" + i + "/" + j; }
+function tileExtent(d, i, j) {
+  const s = crs.root.size / 2 ** d;
+  return [crs.root.x0 + i * s, crs.root.y0 + j * s, crs.root.x0 + (i + 1) * s, crs.root.y0 + (j + 1) * s];
+}
+function getTile(d, i, j) {
+  const k = tileKey(d, i, j);
+  let t = tiles.get(k);
+  if (!t) { t = { key: k, d, i, j, ext: tileExtent(d, i, j), state: "new", hmin: 0, hmax: 1300, used: 0 }; tiles.set(k, t); }
+  return t;
+}
+function intersectsDem(ext) {
+  // Conservative: tile corners and centre mapped to DEM CRS, checked against the DEM extent.
+  const [x0, y0, x1, y1] = ext; const [a, b, c, d] = dem.extent;
+  let ex0 = Infinity, ey0 = Infinity, ex1 = -Infinity, ey1 = -Infinity;
+  for (const [x, y] of [[x0, y0], [x1, y0], [x0, y1], [x1, y1], [(x0 + x1) / 2, y0], [(x0 + x1) / 2, y1], [x0, (y0 + y1) / 2], [x1, (y0 + y1) / 2]]) {
+    const [e, n] = crs.toDem(x, y); ex0 = Math.min(ex0, e); ey0 = Math.min(ey0, n); ex1 = Math.max(ex1, e); ey1 = Math.max(ey1, n);
+  }
+  return ex1 > a && ex0 < c && ey1 > b && ey0 < d;
+}
+
+async function buildTile(t) {
+  const t0 = performance.now();
+  const [x0, y0, x1, y1] = t.ext;
+  const s = (x1 - x0) / GRID;
+  const S = GRID + 3; // one extra sample ring on every side for normals
+  // Sample positions in DEM CRS.
+  const E = new Float64Array(S * S), N = new Float64Array(S * S);
+  let eMin = Infinity, eMax = -Infinity, nMin = Infinity, nMax = -Infinity;
+  for (let r = 0; r < S; r++) for (let c = 0; c < S; c++) {
+    const vx = x0 + (c - 1) * s, vy = y1 - (r - 1) * s;
+    const [e, n] = crs.toDem(vx, vy);
+    const k = r * S + c; E[k] = e; N[k] = n;
+    if (e < eMin) eMin = e; if (e > eMax) eMax = e; if (n < nMin) nMin = n; if (n > nMax) nMax = n;
+  }
+  const groundSpacing = Math.max((eMax - eMin), (nMax - nMin)) / (S - 1);
+  const li = pickLevel(groundSpacing);
+  const L = dem.levels[li];
+  let px0 = Math.max(0, Math.floor((eMin - dem.ox) / L.rx) - 1), px1 = Math.min(L.w, Math.ceil((eMax - dem.ox) / L.rx) + 2);
+  let py0 = Math.max(0, Math.floor((dem.oy - nMax) / L.ry) - 1), py1 = Math.min(L.h, Math.ceil((dem.oy - nMin) / L.ry) + 2);
+  let data = null, ww = 0, wh = 0;
+  if (px1 > px0 && py1 > py0) {
+    const rr = await L.image.readRasters({ window: [px0, py0, px1, py1], pool: dem.pool || undefined });
+    data = rr[0]; ww = px1 - px0; wh = py1 - py0;
+  }
+  const nod = dem.nodata, sc = dem.cfg.scale;
+  const valid = (v) => v !== nod && v > -1e30 && v === v;
+  const H = new Float32Array(S * S);
+  let hmin = Infinity, hmax = -Infinity;
+  for (let k = 0; k < S * S; k++) {
+    let h = 0;
+    if (data) {
+      const fx = (E[k] - dem.ox) / L.rx - 0.5 - px0, fy = (dem.oy - N[k]) / L.ry - 0.5 - py0;
+      const xi = Math.floor(fx), yi = Math.floor(fy);
+      if (xi >= 0 && yi >= 0 && xi + 1 < ww && yi + 1 < wh) {
+        const tx = fx - xi, ty = fy - yi, i0 = yi * ww + xi;
+        const a = data[i0], b = data[i0 + 1], c = data[i0 + ww], d = data[i0 + ww + 1];
+        if (valid(a) && valid(b) && valid(c) && valid(d)) h = ((a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty) * sc;
+        else { const v = data[Math.round(fy) * ww + Math.round(fx)]; h = valid(v) ? v * sc : 0; }
+      }
+    }
+    H[k] = h;
+    if (h < hmin) hmin = h; if (h > hmax) hmax = h;
+  }
+  if (t.state === "disposed") return;
+  t.geometry = makeGeometry(t, H, S, s);
+  t.hmin = hmin; t.hmax = hmax; t.level = li;
+  t.material = new THREE.ShaderMaterial({
+    side: THREE.DoubleSide,
+    uniforms: Object.assign({}, uniformsShared, { uBase: { value: EMPTY_TEX }, uOverlay: { value: EMPTY_TEX }, uHasBase: { value: 0 } }),
+    vertexShader: VERT, fragmentShader: FRAG
+  });
+  t.mesh = new THREE.Mesh(t.geometry, t.material);
+  t.mesh.userData.tile = t;
+  t.mesh.matrixAutoUpdate = false;
+  t.overlayDirty = true;
+  t.state = "ready";
+  const dt = performance.now() - t0;
+  buildMsAvg = buildMsAvg ? buildMsAvg * 0.9 + dt * 0.1 : dt;
+}
+
+function makeGeometry(t, H, S, s) {
+  const [x0, , , y1] = t.ext;
+  const n = GRID + 1;
+  const nVert = n * n + 4 * n;
+  const pos = new Float32Array(nVert * 3), nor = new Float32Array(nVert * 3), uv = new Float32Array(nVert * 2), hs = new Float32Array(nVert);
+  const skirt = Math.max(5, s * 4);
+  let v = 0;
+  const put = (r, c, drop) => {
+    const k = (r + 1) * S + (c + 1);
+    const h = H[k];
+    const [wx, wz] = toWorld(x0 + c * s, y1 - r * s);
+    pos[v * 3] = wx; pos[v * 3 + 1] = h - drop; pos[v * 3 + 2] = wz;
+    const dx = (H[k + 1] - H[k - 1]) / (2 * s), dy = (H[k - S] - H[k + S]) / (2 * s); // dh/dx (east), dh/dy (north)
+    const len = Math.hypot(dx, dy, 1);
+    nor[v * 3] = -dx / len; nor[v * 3 + 1] = 1 / len; nor[v * 3 + 2] = dy / len;
+    uv[v * 2] = c / GRID; uv[v * 2 + 1] = 1 - r / GRID;
+    hs[v] = h;
+    return v++;
+  };
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) put(r, c, 0);
+  const idx = [];
+  for (let r = 0; r < GRID; r++) for (let c = 0; c < GRID; c++) {
+    const a = r * n + c, b = a + 1, d = a + n, e = d + 1;
+    idx.push(a, d, b, b, d, e);
+  }
+  // Skirts hide cracks between neighbouring tiles at different levels.
+  const edge = (cells) => {
+    let prevTop = -1, prevBot = -1;
+    for (const [r, c] of cells) {
+      const top = r * n + c, bot = put(r, c, skirt);
+      if (prevTop >= 0) idx.push(prevTop, prevBot, top, top, prevBot, bot);
+      prevTop = top; prevBot = bot;
+    }
+  };
+  const run = (f) => Array.from({ length: n }, (_, k) => f(k));
+  v = n * n;
+  edge(run((k) => [0, k])); edge(run((k) => [k, GRID]));
+  edge(run((k) => [GRID, GRID - k])); edge(run((k) => [GRID - k, 0]));
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos.subarray(0, v * 3), 3));
+  g.setAttribute("normal", new THREE.BufferAttribute(nor.subarray(0, v * 3), 3));
+  g.setAttribute("uv", new THREE.BufferAttribute(uv.subarray(0, v * 2), 2));
+  g.setAttribute("aH", new THREE.BufferAttribute(hs.subarray(0, v), 1));
+  g.setIndex(idx);
+  g.computeBoundingSphere(); g.computeBoundingBox();
+  return g;
+}
+
+function disposeTile(t) {
+  if (t.mesh) terrain.remove(t.mesh);
+  t.geometry?.dispose(); t.material?.dispose(); t.overlayTex?.dispose(); t.baseTex?.dispose();
+  t.state = "disposed";
+  tiles.delete(t.key); queue.delete(t.key);
+}
+
+function request(t, priority) {
+  if (t.state !== "new") return;
+  const q = queue.get(t.key);
+  if (!q || q.priority < priority) queue.set(t.key, { tile: t, priority });
+}
+
+function pumpQueue() {
+  if (activeBuilds >= MAX_BUILDS || !queue.size) return;
+  const items = Array.from(queue.values()).sort((a, b) => b.priority - a.priority);
+  for (const { tile } of items) {
+    if (activeBuilds >= MAX_BUILDS) break;
+    queue.delete(tile.key);
+    if (tile.state !== "new") continue;
+    tile.state = "loading"; activeBuilds++;
+    $("busy").hidden = false;
+    buildTile(tile).catch((e) => {
+      console.warn("tile failed", tile.key, e);
+      tile.fails = (tile.fails || 0) + 1;
+      tile.state = tile.fails >= 3 ? "empty" : "new";
+    })
+      .finally(() => { activeBuilds--; needsRender = true; if (!activeBuilds && !queue.size) $("busy").hidden = true; });
+  }
+}
+
+const frustum = new THREE.Frustum(), projView = new THREE.Matrix4(), box = new THREE.Box3();
+let detailPx = 3;
+let drawn = [];
+
+function tileBox(t) {
+  const [x0, y0, x1, y1] = t.ext;
+  const [ax, az] = toWorld(x0, y1), [bx, bz] = toWorld(x1, y0);
+  const ex = terrain.scale.y;
+  box.min.set(ax, (t.hmin - 50) * ex, az); box.max.set(bx, (t.hmax + 10) * ex, bz);
+  return box;
+}
+
+function selectTiles() {
+  projView.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+  frustum.setFromProjectionMatrix(projView);
+  const K = renderer.domElement.clientHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2));
+  const camPos = camera.position;
+  const minSpacing = dem.levels[0].rx * 0.9;
+  drawn = [];
+  const visit = (t) => {
+    t.used = frameNo;
+    const b = tileBox(t);
+    if (!frustum.intersectsBox(b)) return;
+    const dist = Math.max(1, b.distanceToPoint(camPos));
+    const spacing = (t.ext[2] - t.ext[0]) / GRID;
+    const errPx = spacing / dist * K;
+    const wantSplit = errPx > detailPx && spacing > minSpacing;
+    if (wantSplit) {
+      const kids = [];
+      for (let dj = 0; dj < 2; dj++) for (let di = 0; di < 2; di++) {
+        const c = getTile(t.d + 1, t.i * 2 + di, t.j * 2 + dj);
+        if (c.state === "new" && !intersectsDem(c.ext)) c.state = "empty";
+        kids.push(c);
+      }
+      const live = kids.filter((c) => c.state !== "empty");
+      if (live.every((c) => c.state === "ready")) { kids.forEach((c) => { c.used = frameNo; }); live.forEach(visit); return; }
+      live.forEach((c) => request(c, errPx));
+    }
+    drawn.push(t);
+  };
+  const root = getTile(0, 0, 0);
+  if (root.state === "ready") visit(root); else request(root, 1e9);
+  // Sync scene with the selection.
+  const want = new Set(drawn.map((t) => t.mesh));
+  for (const m of terrain.children.slice()) if (!want.has(m)) terrain.remove(m);
+  for (const t of drawn) if (t.mesh.parent !== terrain) { terrain.add(t.mesh); t.mesh.updateMatrix(); }
+  // Evict least recently used tiles.
+  if (tiles.size > CACHE_TILES) {
+    const old = Array.from(tiles.values()).filter((t) => t.used < frameNo - 30 && t.d > 0 && t.state !== "loading").sort((a, b) => a.used - b.used);
+    old.slice(0, tiles.size - CACHE_TILES).forEach(disposeTile);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Imagery and overlays per tile
+// ---------------------------------------------------------------------------
+let baseMode = "relief", wfsAllowed = true;
+function baseUrl(t) {
+  const srv = LIST_EXPORT[baseMode];
+  if (!srv || !crs.wkid) return null;
+  const q = new URLSearchParams({ bbox: t.ext.join(","), bboxSR: crs.wkid, imageSR: crs.wkid, size: "512,512", format: baseMode === "ortho" ? "jpg" : "png", transparent: "false", f: "image" });
+  return srv + "?" + q.toString();
+}
+const texLoader = new THREE.TextureLoader();
+texLoader.setCrossOrigin("anonymous");
+function updateBase(t) {
+  if (baseMode === "relief" || t.baseFor === baseMode + crs.id) return;
+  t.baseFor = baseMode + crs.id;
+  const url = baseUrl(t);
+  if (!url) return;
+  const mode = baseMode;
+  texLoader.load(url, (tex) => {
+    if (t.state === "disposed" || mode !== baseMode) { tex.dispose(); return; }
+    tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+    t.baseTex?.dispose(); t.baseTex = tex;
+    t.material.uniforms.uBase.value = tex; t.material.uniforms.uHasBase.value = 1;
+    needsRender = true;
+  }, undefined, () => { t.baseFor = null; });
+}
+
+function drawOverlay(t) {
+  t.overlayDirty = false;
+  const [x0, y0, x1, y1] = t.ext;
+  const spacingM = (x1 - x0) / GRID;
+  const layers = Array.from(layerState.values()).filter((st) => st.enabled && st.features.size && spacingM <= 4 * zoomRes(st.def.minzoom));
+  const hits = [];
+  for (const st of layers) for (const f of st.features.values()) {
+    const b = f._bb; if (!b || b[2] < x0 || b[0] > x1 || b[3] < y0 || b[1] > y1) continue;
+    hits.push([st, f]);
+  }
+  if (!hits.length) {
+    if (t.overlayTex) { t.overlayTex.dispose(); t.overlayTex = null; t.material.uniforms.uOverlay.value = EMPTY_TEX; }
+    return;
+  }
+  if (!t.overlayCanvas) { t.overlayCanvas = document.createElement("canvas"); t.overlayCanvas.width = t.overlayCanvas.height = OVERLAY_PX; }
+  const cv = t.overlayCanvas, g = cv.getContext("2d");
+  g.clearRect(0, 0, OVERLAY_PX, OVERLAY_PX);
+  const k = OVERLAY_PX / (x1 - x0);
+  const X = (x) => (x - x0) * k, Y = (y) => (y1 - y) * k;
+  const path = (ring) => { ring.forEach(([x, y], i) => i ? g.lineTo(X(x), Y(y)) : g.moveTo(X(x), Y(y))); };
+  for (const [st, f] of hits) {
+    const geom = f._v, col = st.def.color;
+    g.strokeStyle = col; g.fillStyle = col; g.lineJoin = "round"; g.lineCap = "round";
+    const polys = geom.type === "Polygon" ? [geom.coordinates] : geom.type === "MultiPolygon" ? geom.coordinates : [];
+    const lines = geom.type === "LineString" ? [geom.coordinates] : geom.type === "MultiLineString" ? geom.coordinates : [];
+    const pts = geom.type === "Point" ? [geom.coordinates] : geom.type === "MultiPoint" ? geom.coordinates : [];
+    if (polys.length) {
+      g.beginPath(); polys.forEach((p) => p.forEach((ring) => { path(ring); g.closePath(); }));
+      g.globalAlpha = 0.25; g.fill("evenodd"); g.globalAlpha = 1; g.lineWidth = 1.4; g.stroke();
+    }
+    if (lines.length) { g.beginPath(); lines.forEach(path); g.lineWidth = st.def.kind === "line" ? 2.2 : 1.6; g.stroke(); }
+    if (pts.length) {
+      for (const [x, y] of pts) { g.beginPath(); g.arc(X(x), Y(y), 4, 0, Math.PI * 2); g.fill(); g.lineWidth = 1.2; g.strokeStyle = "#ffffff"; g.stroke(); g.strokeStyle = col; }
+    }
+  }
+  if (!t.overlayTex) {
+    t.overlayTex = new THREE.CanvasTexture(cv);
+    t.overlayTex.colorSpace = THREE.SRGBColorSpace; t.overlayTex.anisotropy = 4;
+    t.material.uniforms.uOverlay.value = t.overlayTex;
+  } else t.overlayTex.needsUpdate = true;
+}
+
+function markOverlaysDirty(bb) {
+  for (const t of tiles.values()) {
+    if (t.state !== "ready") continue;
+    const [x0, y0, x1, y1] = t.ext;
+    if (!bb || !(bb[2] < x0 || bb[0] > x1 || bb[3] < y0 || bb[1] > y1)) t.overlayDirty = true;
+  }
+  needsRender = true;
+}
+
+// ---------------------------------------------------------------------------
+// WFS: cells in Web Mercator tile indices at each layer's minzoom; features projected once into the view CRS
+// ---------------------------------------------------------------------------
+const layerState = new Map();
+const zoomRes = (z) => 78271.517 * Math.cos(-42.5 * Math.PI / 180) / 2 ** z; // metres per pixel at MapLibre zoom z
+
+function firstPos(g) {
+  if (g.type === "GeometryCollection") return g.geometries.length ? firstPos(g.geometries[0]) : null;
+  let c = g.coordinates; while (c && typeof c[0] !== "number") c = c[0]; return c;
+}
+function mapCoords(c, fn) { return typeof c[0] === "number" ? fn(c) : c.map((x) => mapCoords(x, fn)); }
+function normaliseGeometry(g) {
+  if (!g || g.type === "GeometryCollection") return null;
+  const p = firstPos(g); if (!p) return null;
+  // Tasmania has positive x and negative y in lon/lat and Web Mercator; a negative first value means swapped axes.
+  if (p[0] < 0 && p[1] > 0) g.coordinates = mapCoords(g.coordinates, ([a, b]) => [b, a]);
+  if (Math.abs(firstPos(g)[0]) > 360) g.coordinates = mapCoords(g.coordinates, ([x, y]) => merc2ll(x, y));
+  return g;
+}
+function projectFeature(f) {
+  const bb = [Infinity, Infinity, -Infinity, -Infinity];
+  const coords = mapCoords(f.geometry.coordinates, ([lon, lat]) => {
+    const [x, y] = crs.fromLL(lon, lat);
+    if (x < bb[0]) bb[0] = x; if (y < bb[1]) bb[1] = y; if (x > bb[2]) bb[2] = x; if (y > bb[3]) bb[3] = y;
+    return [x, y];
+  });
+  f._v = { type: f.geometry.type, coordinates: coords }; f._bb = bb;
+  return bb;
+}
+
+function cellBounds(z, x, y) { const s = 2 * HALF / 2 ** z; return [-HALF + x * s, HALF - (y + 1) * s, -HALF + (x + 1) * s, HALF - y * s]; }
+function viewLonLatBox() {
+  const tgt = controls.target, dist = camera.position.distanceTo(tgt);
+  const r = Math.min(dist * 1.6, 60000);
+  const [cx, cy] = fromWorld(tgt.x, tgt.z);
+  let w = Infinity, s = Infinity, e = -Infinity, n = -Infinity;
+  for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1], [0, -1], [0, 1], [-1, 0], [1, 0]]) {
+    const [lon, lat] = crs.toLL(cx + dx * r, cy + dy * r);
+    w = Math.min(w, lon); e = Math.max(e, lon); s = Math.min(s, lat); n = Math.max(n, lat);
+  }
+  const [clon, clat] = crs.toLL(cx, cy);
+  return { w, s, e, n, clon, clat };
+}
+function visibleCells(z) {
+  const v = viewLonLatBox(), sz = 2 * HALF / 2 ** z;
+  const [x0m, y0m] = ll2merc(v.w, v.s), [x1m, y1m] = ll2merc(v.e, v.n), [cx, cy] = ll2merc(v.clon, v.clat);
+  const cells = [];
+  for (let x = Math.floor((x0m + HALF) / sz); x <= Math.floor((x1m + HALF) / sz); x++)
+    for (let y = Math.floor((HALF - y1m) / sz); y <= Math.floor((HALF - y0m) / sz); y++) {
+      const b = cellBounds(z, x, y);
+      cells.push({ x, y, d: Math.hypot((b[0] + b[2]) / 2 - cx, (b[1] + b[3]) / 2 - cy) });
+    }
+  return cells.sort((a, b) => a.d - b.d).slice(0, MAX_CELLS);
+}
+function equivalentZoom() {
+  const dist = camera.position.distanceTo(controls.target);
+  const res = dist * 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) / renderer.domElement.clientHeight;
+  return Math.log2(78271.517 * Math.cos(-42.5 * Math.PI / 180) / res);
+}
+
+async function fetchCell(st, z, x, y) {
+  const bb = cellBounds(z, x, y);
+  // LIST's ArcGIS WFS reads a bare bbox as EPSG:4326 lat,lon and answers in lat,lon.
+  const [cw, cs, ce, cn] = [merc2ll(bb[0], bb[1]), merc2ll(bb[2], bb[3])].flat();
+  let truncated = false;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const q = new URLSearchParams({
+      service: "WFS", version: "2.0.0", request: "GetFeature", typeNames: WFS_NS + st.def.type, outputFormat: "GEOJSON",
+      bbox: [cs, cw, cn, ce].map((v) => v.toFixed(6)).join(","), count: String(PAGE_SIZE), startIndex: String(page * PAGE_SIZE)
+    });
+    const res = await fetch(WFS_URL + "?" + q.toString());
+    const text = await res.text();
+    let gj;
+    try {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      gj = JSON.parse(text);
+      if (!Array.isArray(gj.features)) throw new Error("not GeoJSON");
+    } catch (err) { throw text.includes("Exception") ? new Error("WFS exception") : err; }
+    const ub = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const f of gj.features) {
+      const id = f.id ?? f.properties?.OBJECTID ?? JSON.stringify(f.geometry).slice(0, 200);
+      if (st.features.has(id)) continue;
+      f.geometry = normaliseGeometry(f.geometry);
+      if (!f.geometry) continue;
+      const b = projectFeature(f);
+      ub[0] = Math.min(ub[0], b[0]); ub[1] = Math.min(ub[1], b[1]); ub[2] = Math.max(ub[2], b[2]); ub[3] = Math.max(ub[3], b[3]);
+      st.features.set(id, f);
+    }
+    if (isFinite(ub[0])) markOverlaysDirty(ub);
+    if (gj.features.length < PAGE_SIZE) break;
+    if (page === MAX_PAGES - 1) truncated = true;
+  }
+  return { truncated };
+}
+
+async function refreshLayer(st) {
+  if (!st.enabled) return setChip(st, "off", "idle");
+  if (!wfsAllowed) return setChip(st, "needs network", "bad");
+  if (equivalentZoom() < st.def.minzoom) return setChip(st, "zoom " + st.def.minzoom + "+", "idle");
+  const pz = st.def.minzoom;
+  const cells = visibleCells(pz).filter((c) => !st.cells.has(pz + "/" + c.x + "/" + c.y));
+  if (!cells.length) return renderChip(st);
+  st.pending += cells.length; renderChip(st);
+  await Promise.all(cells.map(async (c) => {
+    const key = pz + "/" + c.x + "/" + c.y;
+    st.cells.set(key, "loading");
+    try { const r = await fetchCell(st, pz, c.x, c.y); st.cells.set(key, "done"); if (r.truncated) st.truncated = true; st.error = null; }
+    catch (e) { st.cells.delete(key); st.error = e.message === "Failed to fetch" ? "blocked" : e.message; }
+    finally { st.pending--; renderChip(st); }
+  }));
+}
+function renderChip(st) {
+  if (st.error && !st.features.size) return setChip(st, st.error, "bad");
+  if (st.pending) return setChip(st, "paging " + st.pending, "warn");
+  const n = st.features.size.toLocaleString();
+  setChip(st, st.truncated ? n + "+" : n, st.truncated ? "warn" : "ok");
+}
+function setChip(st, text, cls) { st.chip.textContent = text; st.chip.className = "chip " + cls; }
+
+function addOverlayControl(def, enabled) {
+  if (layerState.has(def.type)) return layerState.get(def.type);
+  const row = document.createElement("label"); row.className = "layer";
+  const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = enabled; cb.id = "ov-" + def.type.replace(/[^A-Za-z0-9_-]/g, "_");
+  const name = document.createElement("span"); name.className = "name";
+  const sw = document.createElement("span"); sw.className = "swatch"; sw.style.background = def.color;
+  name.append(sw, document.createTextNode(def.label));
+  const chip = document.createElement("span"); chip.className = "chip idle"; chip.textContent = "off";
+  row.append(cb, name, chip); $("layers").append(row);
+  const st = { def, enabled, chip, cells: new Map(), features: new Map(), pending: 0, truncated: false, error: null };
+  layerState.set(def.type, st);
+  cb.addEventListener("change", () => { st.enabled = cb.checked; markOverlaysDirty(null); refreshLayer(st); });
+  return st;
+}
+
+// ---------------------------------------------------------------------------
+// Picking
+// ---------------------------------------------------------------------------
+const raycaster = new THREE.Raycaster();
+function pick(ev) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  const ndc = new THREE.Vector2(((ev.clientX - rect.left) / rect.width) * 2 - 1, -((ev.clientY - rect.top) / rect.height) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const hit = raycaster.intersectObjects(terrain.children, false)[0];
+  if (!hit) return null;
+  const [x, y] = fromWorld(hit.point.x, hit.point.z);
+  return { x, y, h: hit.point.y / terrain.scale.y, px: ev.clientX - rect.left, py: ev.clientY - rect.top, tile: hit.object.userData.tile };
+}
+function distSeg(px, py, ax, ay, bx, by) {
+  const dx = bx - ax, dy = by - ay, l = dx * dx + dy * dy;
+  const t = l ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l)) : 0;
+  return Math.hypot(px - ax - t * dx, py - ay - t * dy);
+}
+function inRing(x, y, ring) {
+  let ins = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i], [xj, yj] = ring[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) ins = !ins;
+  }
+  return ins;
+}
+function featureAt(p) {
+  const tol = (p.tile.ext[2] - p.tile.ext[0]) / OVERLAY_PX * 6;
+  let best = null, bestD = Infinity;
+  const layers = Array.from(layerState.values()).filter((st) => st.enabled).reverse();
+  for (const st of layers) for (const f of st.features.values()) {
+    const b = f._bb; if (!b || p.x < b[0] - tol || p.x > b[2] + tol || p.y < b[1] - tol || p.y > b[3] + tol) continue;
+    const g = f._v;
+    if (g.type === "Polygon" || g.type === "MultiPolygon") {
+      const polys = g.type === "Polygon" ? [g.coordinates] : g.coordinates;
+      let inside = false; for (const poly of polys) for (const ring of poly) if (inRing(p.x, p.y, ring)) inside = !inside;
+      if (inside && bestD > tol * 0.5) { best = [st, f]; bestD = tol * 0.5; }
+    } else if (g.type === "LineString" || g.type === "MultiLineString") {
+      const lines = g.type === "LineString" ? [g.coordinates] : g.coordinates;
+      for (const l of lines) for (let i = 1; i < l.length; i++) {
+        const d = distSeg(p.x, p.y, l[i - 1][0], l[i - 1][1], l[i][0], l[i][1]);
+        if (d < tol && d < bestD) { best = [st, f]; bestD = d; }
+      }
+    } else {
+      const pts = g.type === "Point" ? [g.coordinates] : g.coordinates;
+      for (const [x, y] of pts) { const d = Math.hypot(p.x - x, p.y - y); if (d < tol && d < bestD) { best = [st, f]; bestD = d; } }
+    }
+  }
+  return best;
+}
+let downAt = null;
+renderer.domElement.addEventListener("pointerdown", (e) => { downAt = [e.clientX, e.clientY]; });
+renderer.domElement.addEventListener("pointerup", (e) => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 4) return;
+  const p = pick(e); if (!p) { $("pop").hidden = true; return; }
+  const hit = featureAt(p);
+  if (!hit) { $("pop").hidden = true; return; }
+  const [st, f] = hit;
+  const rows = Object.entries(f.properties || {})
+    .filter(([k, v]) => v !== null && v !== "" && v !== "null" && !/^(SHAPE|Shape|GlobalID|GmlID)/.test(k)).slice(0, 14)
+    .map(([k, v]) => "<tr><td>" + esc(k) + "</td><td>" + esc(v) + "</td></tr>").join("");
+  $("pop-body").innerHTML = "<h3>" + esc(st.def.label) + "</h3><table>" + rows + "</table>";
+  const pop = $("pop"); pop.hidden = false; pop.style.left = p.px + "px"; pop.style.top = p.py + "px";
+});
+$("pop-close").addEventListener("click", () => { $("pop").hidden = true; });
+let lastMove = 0;
+renderer.domElement.addEventListener("pointermove", (e) => {
+  const now = performance.now(); if (now - lastMove < 80 || e.buttons) return; lastMove = now;
+  const p = pick(e); if (!p) return;
+  const [lon, lat] = crs.toLL(p.x, p.y);
+  $("readout").textContent = Math.round(p.x) + " E  " + Math.round(p.y) + " N  " + p.h.toFixed(1) + " m   " + lat.toFixed(5) + ", " + lon.toFixed(5);
+});
+
+// ---------------------------------------------------------------------------
+// Camera and loop
+// ---------------------------------------------------------------------------
+function placeCamera(lon, lat, dist, pitchDeg, bearingDeg, ground = 300) {
+  const [x, y] = crs.fromLL(lon, lat);
+  const [wx, wz] = toWorld(x, y);
+  controls.target.set(wx, ground * terrain.scale.y, wz);
+  const pitch = THREE.MathUtils.degToRad(90 - pitchDeg), bear = THREE.MathUtils.degToRad(bearingDeg);
+  // Bearing measured from grid north of the view CRS.
+  camera.position.set(wx - Math.sin(bear) * Math.sin(pitch) * dist, ground * terrain.scale.y + Math.cos(pitch) * dist, wz + Math.cos(bear) * Math.sin(pitch) * dist);
+  controls.update(); needsRender = true;
+}
+
+function resize() {
+  const w = container.clientWidth, h = container.clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); needsRender = true;
+}
+window.addEventListener("resize", resize);
+
+let lastView = "", viewTimer = null;
+function loop() {
+  requestAnimationFrame(loop);
+  frameNo++;
+  const moved = controls.update();
+  if (moved) needsRender = true;
+  const dist = camera.position.distanceTo(controls.target);
+  // Keep the target on the ground so rotation pivots at the surface.
+  camera.near = Math.max(0.5, dist / 2000); camera.far = Math.max(dist * 80, 400000); camera.updateProjectionMatrix();
+  uniformsShared.uFogDensity.value = 1 / (dist * 9 + 20000);
+  if (!needsRender && !queue.size && !activeBuilds) return;
+  const t0 = performance.now();
+  selectTiles();
+  pumpQueue();
+  let overlayBudget = 6;
+  for (const t of drawn) {
+    if (t.overlayDirty && overlayBudget-- > 0) drawOverlay(t);
+    if (baseMode !== "relief") updateBase(t); else if (t.material.uniforms.uHasBase.value) t.material.uniforms.uHasBase.value = 0;
+  }
+  if (drawn.some((t) => t.overlayDirty)) needsRender = true; else needsRender = false;
+  renderer.render(scene, camera);
+  const ft = performance.now() - t0;
+  $("g-frame").textContent = ft.toFixed(1) + " ms";
+  updateGauge();
+  const v = [controls.target.x, controls.target.z, dist].map((n) => Math.round(n / 50)).join(",");
+  if (v !== lastView) { lastView = v; clearTimeout(viewTimer); viewTimer = setTimeout(() => layerState.forEach(refreshLayer), 300); }
+}
+
+function updateGauge() {
+  $("g-zoom").textContent = equivalentZoom().toFixed(1);
+  const counts = new Array(dem.levels.length).fill(0);
+  let finest = dem.levels.length - 1, tris = 0;
+  for (const t of drawn) { counts[t.level]++; finest = Math.min(finest, t.level); tris += t.geometry.index.count / 3; }
+  const L = dem.levels[finest];
+  $("g-level").textContent = (finest === 0 ? "full res " : "1:" + Math.round(dem.levels[0].w / L.w) + " ") + "(" + (L.rx < 10 ? L.rx.toFixed(1) : Math.round(L.rx)) + " m)";
+  $("g-tiles").textContent = drawn.length + " (" + tiles.size + " cached)";
+  $("g-tris").textContent = Math.round(tris).toLocaleString();
+  $("g-build").textContent = buildMsAvg ? buildMsAvg.toFixed(0) + " ms avg" + (dem.pool ? ", workers" : "") : "-";
+  const lad = $("ladder").children;
+  const max = Math.max(...counts);
+  for (let i = 0; i < lad.length; i++) lad[i].className = counts[i] === max && max ? "on" : counts[i] ? "some" : "";
+}
+
+// ---------------------------------------------------------------------------
+// Panel wiring
+// ---------------------------------------------------------------------------
+function resetTiles() {
+  for (const t of Array.from(tiles.values())) disposeTile(t);
+  terrain.clear(); queue.clear();
+}
+function applyCrs(entry, customDef) {
+  // Keep the camera over the same place.
+  let keep = null;
+  if (crs) {
+    const [x, y] = fromWorld(controls.target.x, controls.target.z);
+    const [lon, lat] = crs.toLL(x, y);
+    const off = camera.position.clone().sub(controls.target);
+    keep = { lon, lat, dist: off.length(), pitch: 90 - THREE.MathUtils.radToDeg(Math.acos(off.y / off.length())), bearing: THREE.MathUtils.radToDeg(Math.atan2(-off.x, off.z)), ground: controls.target.y / terrain.scale.y };
+  }
+  setupCrs(entry, customDef);
+  resetTiles();
+  layerState.forEach((st) => st.features.forEach((f) => projectFeature(f)));
+  const k = keep || HOME;
+  placeCamera(k.lon, k.lat, k.dist, k.pitch, k.bearing, k.ground ?? 300);
+  $("crs-note").textContent = crs.native
+    ? "The DEM's own grid: tiles are cut straight from the COG with no reprojection."
+    : "Every mesh vertex is reprojected to the DEM grid with proj4 before sampling." + (crs.wkid ? "" : " Imagery needs an EPSG code, so only Relief is available.");
+  ["ortho", "topo"].forEach((b) => { $("base-" + b).disabled = !wfsAllowed || !crs.wkid; });
+  if (!crs.wkid && baseMode !== "relief") setBase("relief");
+}
+function setBase(which) {
+  baseMode = which;
+  ["relief", "ortho", "topo"].forEach((b) => $("base-" + b).setAttribute("aria-pressed", String(b === which)));
+  uniformsShared.uBaseMode.value = which === "relief" ? 0 : 1;
+  for (const t of tiles.values()) { t.baseFor = null; if (t.material) t.material.uniforms.uHasBase.value = 0; t.baseTex?.dispose(); t.baseTex = null; }
+  needsRender = true;
+}
+function wirePanel() {
+  const sel = $("crs");
+  CRS_LIST.forEach((c) => { const o = document.createElement("option"); o.value = c.id; o.textContent = c.label; sel.append(o); });
+  sel.addEventListener("change", () => {
+    const entry = CRS_LIST.find((c) => c.id === sel.value);
+    $("crs-custom").hidden = entry.id !== "custom";
+    if (entry.id !== "custom") applyCrs(entry);
+  });
+  $("crs-custom").addEventListener("change", (e) => {
+    try { proj4(e.target.value).forward([146.5, -42]); applyCrs(CRS_LIST.at(-1), e.target.value); }
+    catch (err) { $("crs-note").textContent = "That proj4 string did not parse: " + err.message; }
+  });
+  ["relief", "ortho", "topo"].forEach((b) => $("base-" + b).addEventListener("click", () => setBase(b)));
+  $("exag").addEventListener("input", (e) => {
+    const v = +e.target.value, old = terrain.scale.y; $("exag-out").textContent = v.toFixed(1) + "x";
+    const dy = controls.target.y * (v / old - 1);
+    terrain.scale.y = v; controls.target.y += dy; camera.position.y += dy; needsRender = true;
+  });
+  $("detail").addEventListener("input", (e) => { detailPx = +e.target.value; $("detail-out").textContent = detailPx + "px"; needsRender = true; });
+  $("reset").addEventListener("click", () => placeCamera(HOME.lon, HOME.lat, HOME.dist, HOME.pitch, HOME.bearing));
+  const extra = $("extra"), curated = new Set(OVERLAYS.map((o) => o.type));
+  ALL_TYPES.filter((t) => !curated.has(t)).forEach((t) => { const o = document.createElement("option"); o.value = t; o.textContent = t.replace(/_+/g, " ").trim(); extra.append(o); });
+  const palette = ["#e8590c", "#0c8599", "#9c36b5", "#5f3dc4", "#2f9e44", "#c92a2a"]; let pi = 0;
+  $("extra-add").addEventListener("click", () => {
+    const t = extra.value; if (!t || layerState.has(t)) return;
+    refreshLayer(addOverlayControl({ type: t, label: t.replace(/_+/g, " ").trim(), kind: "any", minzoom: 14, color: palette[pi++ % palette.length] }, true));
+  });
+  $("toggle").addEventListener("click", () => {
+    const c = $("panel").classList.toggle("collapsed");
+    $("toggle").textContent = c ? "Show" : "Hide"; $("toggle").setAttribute("aria-expanded", String(!c));
+  });
+}
+async function probeWfs() {
+  try {
+    const q = "?service=WFS&version=2.0.0&request=GetFeature&typeNames=" + WFS_NS + "LIST_Local_Government_Areas&count=1&outputFormat=GEOJSON";
+    return (await withTimeout(nativeFetch(WFS_URL + q), 12000)).ok;
+  } catch (e) { return false; }
+}
+
+async function main() {
+  wirePanel();
+  $("busy").hidden = false; $("busy").textContent = "Opening DEM";
+  await initDem();
+  $("busy").textContent = "Loading";
+  $("modeline").textContent = dem.cfg.label + ", drawn from its own tile pyramid. LIST WFS layers drape on it.";
+  $("ladder").style.gridTemplateColumns = "repeat(" + dem.levels.length + ", 1fr)";
+  dem.levels.forEach(() => $("ladder").append(document.createElement("i")));
+  const fmtRes = (r) => (r < 10 ? r.toFixed(0) : Math.round(r)) + " m";
+  $("cap-lo").textContent = fmtRes(dem.levels[0].rx); $("cap-hi").textContent = fmtRes(dem.levels.at(-1).rx);
+  $("g-bytes").textContent = fmtBytes(bytesRead);
+  const defaultsOn = new Set(["LIST_Transport_Segments", "LIST_Hydrographic_Lines", "LIST_Cadastral_Parcels"]);
+  OVERLAYS.forEach((d) => addOverlayControl(d, defaultsOn.has(d.type)));
+  resize();
+  applyCrs(CRS_LIST[0]);
+  window.__viewer = { camera, controls, placeCamera, applyCrs: (id) => { $("crs").value = id; $("crs").dispatchEvent(new Event("change")); }, state: () => ({ drawn: drawn.length, queue: queue.size, builds: activeBuilds }) };
+  loop();
+  wfsAllowed = await probeWfs();
+  const msgs = [];
+  if (!dem.live) msgs.push("This page cannot reach the statewide COG, so it is showing the bundled kunanyi / Hobart snapshot at 4 m.");
+  if (!wfsAllowed) msgs.push("LIST (services.thelist.tas.gov.au) is unreachable from here, so overlays and imagery are off. Open the standalone file in a normal browser tab to page them in.");
+  if (msgs.length) { $("sandbox").hidden = false; $("sandbox").textContent = msgs.join(" "); }
+  ["ortho", "topo"].forEach((b) => { $("base-" + b).disabled = !wfsAllowed || !crs.wkid; });
+  $("extra-add").disabled = !wfsAllowed;
+  layerState.forEach(refreshLayer);
+}
+main().catch((e) => { console.error(e); $("sandbox").hidden = false; $("sandbox").textContent = "Could not start: " + e.message; });
+</script>
