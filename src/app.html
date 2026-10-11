@@ -180,7 +180,7 @@ const DEM_LIVE = {
 };
 // Bundled fallback for sandboxed pages that cannot reach S3: kunanyi / Hobart at 4 m, int16 decimetres.
 const DEM_SNAPSHOT = {
-  url: "data/kunanyi_4m_dm.tif",
+  url: "../data/kunanyi_4m_dm.tif",
   // Base64 text parts for hosts that do not serve .tif files (claude.ai artifacts); built by tools/build.py.
   parts: ["kunanyi_4m_dm.b64.0.txt", "kunanyi_4m_dm.b64.1.txt"],
   scale: 0.1,

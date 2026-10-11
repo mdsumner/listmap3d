@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>listmap3d</title>
+<meta name="description" content="3D viewers for the Tasmania 2 m DEM with LIST open data WFS overlays.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@600;700&family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400&display=swap">
+<style>
+/* Layout: one narrow column; two viewer cards side by side, stacking on phones. */
+:root {
+  --ground: #e9ece6; --sheet: #f7f8f4; --ink: #1d2620; --ink-soft: #56625a; --rule: #c9d0c6;
+  --maplibre: #b5451b; --native: #1f6f8b;
+  --f-display: "Archivo Narrow", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --f-body: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --f-data: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --ground: #121714; --sheet: #1a201c; --ink: #e4e9e2; --ink-soft: #9aa69d; --rule: #323b35; --maplibre: #e0703f; --native: #5fb3cf; color-scheme: dark; }
+}
+body { margin: 0; background: var(--ground); color: var(--ink); font: 15px/1.5 var(--f-body); }
+main { max-width: 980px; margin: 0 auto; padding: 40px 16px 48px; display: grid; gap: 28px; }
+h1 { font: 700 34px/1.05 var(--f-display); margin: 0; letter-spacing: .01em; }
+.lede { margin: 8px 0 0; color: var(--ink-soft); max-width: 62ch; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+.card { display: grid; grid-template-rows: auto 1fr; background: var(--sheet); border: 1px solid var(--rule); border-radius: 6px; overflow: hidden; color: inherit; text-decoration: none; }
+.card img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-bottom: 1px solid var(--rule); }
+.card div { padding: 14px 16px 16px; display: grid; gap: 6px; align-content: start; }
+.card h2 { font: 700 21px/1.1 var(--f-display); margin: 0; }
+.card.maplibre h2 span { color: var(--maplibre); }
+.card.native h2 span { color: var(--native); }
+.card p { margin: 0; font-size: 14px; color: var(--ink-soft); }
+.card .go { font: 600 13px var(--f-body); margin-top: 4px; }
+.card.maplibre .go { color: var(--maplibre); }
+.card.native .go { color: var(--native); }
+.card:hover { border-color: var(--ink-soft); }
+.card:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+footer { font-size: 12.5px; color: var(--ink-soft); border-top: 1px solid var(--rule); padding-top: 14px; }
+footer a { color: inherit; }
+code { font: 12.5px var(--f-data); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>listmap3d</h1>
+    <p class="lede">The Tasmania 2 m DEM in 3D, streamed straight from its cloud-optimised GeoTIFF, with LIST open data WFS layers paged in for the view. Two viewers, same data.</p>
+  </header>
+  <section class="cards" aria-label="Viewers">
+    <a class="card maplibre" href="maplibre/">
+      <img src="docs/statewide.png" alt="Statewide relief of Tasmania in the MapLibre viewer">
+      <div>
+        <h2>LISTmap 3D <span>MapLibre</span></h2>
+        <p>MapLibre GL terrain in Web Mercator. Tiles are resampled from the COG on the fly; LIST basemap tiles for imagery.</p>
+        <span class="go">Open viewer</span>
+      </div>
+    </a>
+    <a class="card native" href="native/">
+      <img src="docs/native-statewide.png" alt="Statewide relief of Tasmania in the native three.js viewer">
+      <div>
+        <h2>LISTmap 3D <span>Native</span></h2>
+        <p>three.js meshes in the projection of your choice, cut from the COG's own grid in MGA55. Overlays drawn into each tile.</p>
+        <span class="go">Open viewer</span>
+      </div>
+    </a>
+  </section>
+  <footer>
+    DEM and overlays: The LIST &copy; State of Tasmania, CC BY 3.0 AU. DEM copy on <a href="https://source.coop/alexgleith/tasmania-dem-2m">Source Cooperative</a>.
+    Source and notes: <a href="https://github.com/mdsumner/listmap3d">github.com/mdsumner/listmap3d</a>.
+  </footer>
+</main>
+</body>
+</html>
