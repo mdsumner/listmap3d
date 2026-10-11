@@ -1,0 +1,8 @@
+{
+  "name": "listmap3d",
+  "private": true,
+  "description": "Build-time dependency only: tools/build.py inlines the MapLibre CSS. The page loads its scripts from jsDelivr.",
+  "devDependencies": {
+    "maplibre-gl": "5.20.2"
+  }
+}

@@ -1,0 +1,743 @@
+<title>LISTmap 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/*MAPLIBRE_CSS*/
+</style>
+<style>
+/* Layout: full-bleed 3D map; a survey-sheet panel docks left on desktop, slides up from the bottom on phones. */
+:root {
+  --ground: #e9ece6;
+  --sheet: #f7f8f4;
+  --ink: #1d2620;
+  --ink-soft: #56625a;
+  --rule: #c9d0c6;
+  --accent: #b5451b;
+  --accent-ink: #ffffff;
+  --ok: #2f7d4f;
+  --warn: #a8650f;
+  --bad: #b3261e;
+  --shadow: 0 1px 2px rgba(20, 30, 24, .12), 0 6px 24px rgba(20, 30, 24, .12);
+  --f-display: "Archivo Narrow", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --f-body: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --f-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #121714; --sheet: #1a201c; --ink: #e4e9e2; --ink-soft: #9aa69d; --rule: #323b35;
+    --accent: #e0703f; --accent-ink: #160c07; --ok: #6cc18f; --warn: #e3a64a; --bad: #f08a80;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 28px rgba(0,0,0,.45);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --ground: #121714; --sheet: #1a201c; --ink: #e4e9e2; --ink-soft: #9aa69d; --rule: #323b35;
+  --accent: #e0703f; --accent-ink: #160c07; --ok: #6cc18f; --warn: #e3a64a; --bad: #f08a80;
+  --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 28px rgba(0,0,0,.45);
+  color-scheme: dark;
+}
+html, body { height: 100%; }
+body { background: var(--ground); color: var(--ink); font-family: var(--f-body); font-size: 14px; margin: 0; overflow: hidden; }
+#map { position: absolute; inset: 0; background: var(--ground); }
+
+#panel {
+  position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); left: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  width: 330px; max-width: calc(100% - 24px);
+  background: var(--sheet); color: var(--ink); border: 1px solid var(--rule); border-radius: 6px; box-shadow: var(--shadow);
+  display: flex; flex-direction: column; z-index: 2; overflow: hidden;
+}
+#panel header { padding: 14px 16px 10px; border-bottom: 1px solid var(--rule); display: grid; gap: 4px; }
+#panel h1 { font-family: var(--f-display); font-weight: 700; font-size: 22px; letter-spacing: .01em; margin: 0; line-height: 1.05; text-wrap: balance; }
+#panel h1 span { color: var(--accent); }
+.sub { color: var(--ink-soft); font-size: 12.5px; line-height: 1.4; margin: 0; }
+.scroll { overflow-y: auto; overflow-x: hidden; padding: 4px 16px 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; align-content: start; min-height: 0; }
+.scroll > *, .section > * { min-width: 0; }
+.section { grid-template-columns: minmax(0, 1fr); }
+.section { display: grid; gap: 8px; }
+.label { font-family: var(--f-display); font-weight: 600; font-size: 12px; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-soft); padding-top: 10px; }
+
+.gauge { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-family: var(--f-data); font-size: 12px; font-variant-numeric: tabular-nums; }
+.gauge dt { color: var(--ink-soft); }
+.gauge dd { margin: 0; text-align: right; }
+.ladder { display: grid; grid-template-columns: repeat(11, 1fr); gap: 2px; margin-top: 2px; }
+.ladder i { height: 8px; background: var(--rule); border-radius: 1px; }
+.ladder i.on { background: var(--accent); }
+.ladder-cap { display: flex; justify-content: space-between; font-family: var(--f-data); font-size: 10.5px; color: var(--ink-soft); }
+
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+.seg button { font: 500 12.5px var(--f-body); background: transparent; color: var(--ink); border: 0; border-right: 1px solid var(--rule); padding: 7px 4px; cursor: pointer; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--sheet); }
+.seg button:disabled { color: var(--ink-soft); opacity: .5; cursor: not-allowed; }
+.row { display: flex; align-items: center; gap: 10px; }
+.row label { flex: 0 0 auto; font-size: 12.5px; color: var(--ink-soft); }
+.row input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
+.row output { font-family: var(--f-data); font-size: 12px; width: 3.2em; text-align: right; }
+
+.layers { display: grid; gap: 2px; }
+.layer { display: grid; grid-template-columns: 14px 1fr auto; align-items: center; gap: 8px; padding: 6px 4px; border-radius: 4px; }
+.layer:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.layer input { margin: 0; accent-color: var(--accent); }
+.layer .name { font-size: 13px; display: flex; align-items: center; gap: 7px; min-width: 0; }
+.layer .swatch { width: 10px; height: 10px; border-radius: 2px; flex: 0 0 auto; }
+.chip { font-family: var(--f-data); font-size: 10.5px; padding: 2px 6px; border-radius: 3px; border: 1px solid var(--rule); color: var(--ink-soft); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.chip.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.chip.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+.chip.bad { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+.chip.idle { opacity: .75; }
+
+.add { display: flex; gap: 6px; }
+.add select { flex: 1; min-width: 0; font: 12.5px var(--f-body); padding: 5px; background: var(--sheet); color: var(--ink); border: 1px solid var(--rule); border-radius: 4px; }
+.add button, .btn { font: 600 12.5px var(--f-body); background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 4px; padding: 6px 10px; cursor: pointer; }
+button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.note { font-size: 12.5px; line-height: 1.45; color: var(--ink-soft); margin: 0; }
+.note strong { color: var(--ink); font-weight: 600; }
+.banner { font-size: 12.5px; line-height: 1.45; padding: 9px 10px; border-radius: 4px; border: 1px solid color-mix(in srgb, var(--warn) 50%, transparent); background: color-mix(in srgb, var(--warn) 10%, transparent); color: var(--ink); }
+.foot { font-size: 11px; color: var(--ink-soft); border-top: 1px solid var(--rule); padding: 8px 16px; line-height: 1.4; }
+.foot a { color: inherit; }
+
+#toggle { display: none; }
+#busy { position: absolute; right: 12px; top: calc(12px + env(safe-area-inset-top, 0px)); z-index: 2; font-family: var(--f-data); font-size: 11.5px; background: var(--sheet); color: var(--ink); border: 1px solid var(--rule); border-radius: 4px; padding: 5px 9px; box-shadow: var(--shadow); }
+.maplibregl-popup-content { background: var(--sheet); color: var(--ink); font-family: var(--f-body); font-size: 12px; border-radius: 5px; box-shadow: var(--shadow); padding: 10px 12px; max-width: 300px; }
+.maplibregl-popup-tip { border-top-color: var(--sheet) !important; border-bottom-color: var(--sheet) !important; }
+.maplibregl-popup-close-button { color: var(--ink-soft); }
+.pop h3 { font: 600 13px var(--f-display); letter-spacing: .03em; margin: 0 0 6px; }
+.pop table { border-collapse: collapse; font-family: var(--f-data); font-size: 11px; }
+.pop td { padding: 1px 6px 1px 0; vertical-align: top; overflow-wrap: anywhere; }
+.pop td:first-child { color: var(--ink-soft); white-space: nowrap; }
+
+@media (max-width: 640px) {
+  #panel { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-width: none; max-height: 58%; border-radius: 10px 10px 0 0; padding-bottom: env(safe-area-inset-bottom, 0px); }
+  #panel.collapsed .scroll, #panel.collapsed .foot { display: none; }
+  #toggle { display: block; position: absolute; right: 12px; top: 12px; font: 600 12px var(--f-body); background: transparent; color: var(--ink-soft); border: 1px solid var(--rule); border-radius: 4px; padding: 4px 8px; }
+  #panel header { padding-right: 80px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<div id="map" role="application" aria-label="3D terrain map of Tasmania"></div>
+<div id="busy" hidden>Loading</div>
+<aside id="panel">
+  <header>
+    <h1>LISTmap <span>3D</span></h1>
+    <p class="sub" id="modeline">Tasmania 2 m DEM streamed from a cloud-optimised GeoTIFF, with LIST WFS layers paged in for the view.</p>
+    <button id="toggle" type="button" aria-expanded="true">Hide</button>
+  </header>
+  <div class="scroll">
+    <div id="sandbox" class="banner" hidden></div>
+
+    <section class="section" aria-labelledby="lod-h">
+      <div class="label" id="lod-h">Level of detail</div>
+      <dl class="gauge">
+        <dt>Zoom</dt><dd id="g-zoom">-</dd>
+        <dt>DEM level</dt><dd id="g-level">-</dd>
+        <dt>DEM pixel</dt><dd id="g-res">-</dd>
+        <dt>Bytes read</dt><dd id="g-bytes">0</dd>
+      </dl>
+      <div class="ladder" id="ladder" aria-hidden="true"></div>
+      <div class="ladder-cap"><span id="cap-lo">2 m</span><span>overviews</span><span id="cap-hi">2048 m</span></div>
+    </section>
+
+    <section class="section" aria-labelledby="view-h">
+      <div class="label" id="view-h">Surface</div>
+      <div class="seg" role="group" aria-label="Base layer">
+        <button type="button" id="base-relief" aria-pressed="true">Relief</button>
+        <button type="button" id="base-ortho" aria-pressed="false">Orthophoto</button>
+        <button type="button" id="base-topo" aria-pressed="false">Topographic</button>
+      </div>
+      <div class="row"><label for="exag">Exaggeration</label><input id="exag" type="range" min="1" max="3" step="0.1" value="1.3"><output id="exag-out">1.3x</output></div>
+    </section>
+
+    <section class="section" aria-labelledby="ov-h">
+      <div class="label" id="ov-h">LIST overlays (WFS)</div>
+      <div class="layers" id="layers"></div>
+      <div class="add">
+        <select id="extra" aria-label="Add another WFS layer"></select>
+        <button type="button" id="extra-add">Add</button>
+      </div>
+      <p class="note">The DEM has <strong>10 overview levels</strong>, so it streams at any zoom. The WFS layers have none: each is requested in cells only once you are close enough, which is why they switch off as you zoom out.</p>
+    </section>
+  </div>
+  <div class="foot">DEM and overlays: The LIST &copy; State of Tasmania, CC BY 3.0 AU. DEM copy on <a href="https://source.coop/alexgleith/tasmania-dem-2m" target="_blank" rel="noopener">Source Cooperative</a>.</div>
+</aside>
+
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.20.2/dist/maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/proj4@2.11.0/dist/proj4.js"></script>
+<script>
+(() => {
+"use strict";
+
+// ---------------------------------------------------------------------------
+// Configuration
+// ---------------------------------------------------------------------------
+const DEM_LIVE = {
+  url: "https://s3.us-west-2.amazonaws.com/us-west-2.opendata.source.coop/alexgleith/tasmania-dem-2m/Tasmania_Statewide_2m_DEM_14-08-2021.tif",
+  scale: 1,
+  bounds: [143.6, -43.75, 148.55, -39.45],
+  label: "Statewide 2 m DEM, streamed live from Source Cooperative"
+};
+// Bundled fallback for sandboxed pages that cannot reach S3: kunanyi / Hobart at 4 m, int16 decimetres.
+const DEM_SNAPSHOT = {
+  url: "data/kunanyi_4m_dm.tif",
+  // Base64 text parts for hosts that do not serve .tif files (claude.ai artifacts); built by tools/build.py.
+  parts: ["kunanyi_4m_dm.b64.0.txt", "kunanyi_4m_dm.b64.1.txt"],
+  scale: 0.1,
+  bounds: [147.1468, -42.9475, 147.3923, -42.8209],
+  label: "Bundled kunanyi / Hobart snapshot (4 m)"
+};
+const WFS_URL = "https://services.thelist.tas.gov.au/arcgis/services/Public/OpenDataWFS/MapServer/WFSServer";
+const WFS_NS = "Public_OpenDataWFS:";
+const LIST_TILES = {
+  ortho: "https://services.thelist.tas.gov.au/arcgis/rest/services/Basemaps/Orthophoto/MapServer/tile/{z}/{y}/{x}",
+  topo: "https://services.thelist.tas.gov.au/arcgis/rest/services/Basemaps/Topographic/MapServer/tile/{z}/{y}/{x}"
+};
+proj4.defs("EPSG:28355", "+proj=utm +zone=55 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs");
+const toMGA = proj4("EPSG:4326", "EPSG:28355");
+
+// Curated overlays. minzoom is the local-bound constraint: below it the layer is not requested.
+const OVERLAYS = [
+  { type: "LIST_Transport_Segments", label: "Roads and tracks", kind: "line", minzoom: 13, color: "#d9480f" },
+  { type: "LIST_Hydrographic_Lines", label: "Watercourses", kind: "line", minzoom: 13, color: "#1c7ed6" },
+  { type: "LIST_Contours_10m", label: "Contours 10 m", kind: "line", minzoom: 14, color: "#7a5c2e" },
+  { type: "LIST_Cadastral_Parcels", label: "Cadastral parcels", kind: "fill", minzoom: 15, color: "#f2c94c" },
+  { type: "LIST_Building_Polygons_2D", label: "Buildings", kind: "fill", minzoom: 15, color: "#c2255c" },
+  { type: "LIST_Land_Tenure", label: "Land tenure", kind: "fill", minzoom: 13, color: "#2b8a3e" },
+  { type: "TASVEG_4.0", label: "Vegetation (TASVEG 4)", kind: "fill", minzoom: 14, color: "#5c940d" },
+  { type: "LIST_Nomenclature", label: "Place names", kind: "symbol", minzoom: 12, color: "#212529" },
+  { type: "LIST_Address_Points", label: "Address points", kind: "circle", minzoom: 16, color: "#6741d9" },
+  { type: "LIST_Local_Government_Areas", label: "Council areas", kind: "line", minzoom: 9, color: "#495057" }
+];
+const ALL_TYPES = ["Climate_Futures_Tasmania_-_Scenario_A2","Climate_Futures_Tasmania_-_Scenario_B1","Interim_Planning_Scheme_-_Overlays","Interim_Planning_Scheme_-_Zoning_Boundaries","Interim_Planning_Scheme_-__Zoning","LIDAR_Climate_Futures_Index","LiDAR_Coal_Mines_Port_Arthur_Index","LiDAR_DPAC_Coastal_Index","LiDAR_Mt._Wellington_Index","LIST_Address_Points","LIST_Authority_Land","LIST_Boundary_Segments","LIST_Building_Points","LIST_Building_Polygons_2D","LIST_Cadastral_Parcels","LIST_Coastline__MHWM_","LIST_Contours_10m","LIST_Contours_5m","LIST_Crown_Leases","LIST_Crown_Licences","LIST_Easements__not_a_maintained_dataset_","LIST_Electoral_Divisions","LIST_Hydrographic_Areas","LIST_Hydrographic_Lines","LIST_Hydrographic_Points","LIST_Land_Districts","LIST_Land_Tenure","LIST_Legislative_Council_Divisions","LIST_Local_Government_Areas","LIST_Local_Government_Reserves","LIST_Locality_and_Postcode_Areas","LIST_Marine_Leases","LIST_Marine_Nature_Reserves","LIST_Named_Feature_Extents","LIST_Nomenclature","LIST_Parish_and_Town_Boundaries","LIST_Points_of_Interest","LIST_Private_Reserves","LIST_Public_Land_Classification","LIST_Ramsar_Wetlands","LIST_Survey_Control","LIST_Transport_Nodes","LIST_Transport_Segments","LIST_Water_Districts","LIST_Water_Management_Areas","Land_Tasmania_Aerial_Photography_Centres","Land_Tasmania_Aerial_Photography_Coverages","TASMAP_1_to_100000_Map_Index","TASMAP_1_to_25000_Map_Index","TASMAP_1_to_250000_Map_Index","TASMAP_1_to_5000_Orthophoto_Index","TASMAP_1_to_50000_Map_Index","TASMAP_Towns_Street_Atlas_Page_Index__v8_","LIST_Water_Management_Plan_Areas","TASVEG_4.0","TASVEG_5.0"];
+
+const PAGE_SIZE = 1000;      // features per WFS request
+const MAX_PAGES = 4;         // startIndex pages per cell before marking it truncated
+const MAX_CELLS = 16;        // cells requested per layer per view
+const R = 6378137, HALF = Math.PI * R;
+
+// ---------------------------------------------------------------------------
+// Small helpers
+// ---------------------------------------------------------------------------
+const $ = (id) => document.getElementById(id);
+const fmtBytes = (n) => n < 1e6 ? (n / 1e3).toFixed(0) + " kB" : (n / 1e6).toFixed(1) + " MB";
+const merc2ll = (x, y) => [x / R * 180 / Math.PI, (2 * Math.atan(Math.exp(y / R)) - Math.PI / 2) * 180 / Math.PI];
+const ll2merc = (lon, lat) => [lon * Math.PI / 180 * R, Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360)) * R];
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let bytesRead = 0;
+
+// Count bytes fetched so the LOD gauge can show what each view costs.
+const nativeFetch = window.fetch.bind(window);
+window.fetch = async (...args) => {
+  const res = await nativeFetch(...args);
+  const len = Number(res.headers.get("content-length"));
+  if (len) { bytesRead += len; $("g-bytes").textContent = fmtBytes(bytesRead); }
+  return res;
+};
+
+async function withTimeout(promise, ms) {
+  let t;
+  const timer = new Promise((_, rej) => { t = setTimeout(() => rej(new Error("timeout")), ms); });
+  try { return await Promise.race([promise, timer]); } finally { clearTimeout(t); }
+}
+
+// ---------------------------------------------------------------------------
+// DEM: COG -> terrarium-encoded Web Mercator tiles, picked from the overview pyramid
+// ---------------------------------------------------------------------------
+let dem = null; // { cfg, levels: [{image, w, h, res}], ox, oy, nodata }
+
+async function openDem() {
+  try {
+    const tif = await withTimeout(GeoTIFF.fromUrl(DEM_LIVE.url, { cacheSize: 512 }), 15000);
+    return { tif: tif, cfg: DEM_LIVE, live: true };
+  } catch (e) {
+    console.warn("Live DEM unavailable, using bundled snapshot", e);
+    let buf = null;
+    try {
+      const res = await nativeFetch(DEM_SNAPSHOT.url);
+      if (res.ok) buf = await res.arrayBuffer();
+    } catch (e2) { /* fall through to base64 parts */ }
+    if (!buf) {
+      let b64 = "";
+      for (const part of DEM_SNAPSHOT.parts) {
+        const res = await nativeFetch(part);
+        if (!res.ok) throw new Error("No DEM reachable: live COG blocked and snapshot missing");
+        b64 += (await res.text()).trim();
+      }
+      const bin = atob(b64), bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      buf = bytes.buffer;
+    }
+    bytesRead += buf.byteLength;
+    return { tif: await GeoTIFF.fromArrayBuffer(buf), cfg: DEM_SNAPSHOT, live: false };
+  }
+}
+
+async function initDem() {
+  const { tif, cfg, live } = await openDem();
+  const n = await tif.getImageCount();
+  const base = await tif.getImage(0);
+  const [ox, oy] = base.getOrigin();
+  const [rx] = base.getResolution();
+  const W0 = base.getWidth();
+  const levels = [];
+  for (let i = 0; i < n; i++) {
+    const im = i === 0 ? base : await tif.getImage(i);
+    if (im.fileDirectory.NewSubfileType & 4) continue; // skip masks
+    levels.push({ image: im, w: im.getWidth(), h: im.getHeight(), res: rx * W0 / im.getWidth() });
+  }
+  const nodata = base.getGDALNoData();
+  dem = { cfg, live, levels, ox, oy, nodata };
+  return dem;
+}
+
+function pickLevel(groundRes) {
+  // Coarsest level whose pixel is still at least as fine as the screen pixel on the ground.
+  let best = 0;
+  for (let i = 0; i < dem.levels.length; i++) if (dem.levels[i].res <= groundRes * 1.25) best = i;
+  return best;
+}
+
+const tileCache = new Map();
+const TILE = 256;
+
+function demTile(z, x, y, signal) {
+  const key = z + "/" + x + "/" + y;
+  if (tileCache.has(key)) return tileCache.get(key);
+  const p = buildTile(z, x, y, signal).catch((e) => { tileCache.delete(key); throw e; });
+  tileCache.set(key, p);
+  if (tileCache.size > 800) tileCache.delete(tileCache.keys().next().value);
+  return p;
+}
+
+async function buildTile(z, x, y, signal) {
+  const size = 2 * HALF / 2 ** z;
+  const mx0 = -HALF + x * size, my0 = HALF - y * size;
+  // Control grid of MGA coordinates, interpolated per pixel (TM is smooth over a tile).
+  const G = 8, gE = new Float64Array((G + 1) ** 2), gN = new Float64Array((G + 1) ** 2);
+  let eMin = Infinity, eMax = -Infinity, nMin = Infinity, nMax = -Infinity;
+  for (let j = 0; j <= G; j++) for (let i = 0; i <= G; i++) {
+    const ll = merc2ll(mx0 + i / G * size, my0 - j / G * size);
+    const [E, N] = toMGA.forward(ll);
+    const k = j * (G + 1) + i; gE[k] = E; gN[k] = N;
+    if (E < eMin) eMin = E; if (E > eMax) eMax = E; if (N < nMin) nMin = N; if (N > nMax) nMax = N;
+  }
+  const latC = merc2ll(0, my0 - size / 2)[1];
+  const groundRes = size / TILE * Math.cos(latC * Math.PI / 180);
+  const li = pickLevel(groundRes);
+  const L = dem.levels[li];
+  lastLevel = Math.max(lastLevel, li);
+
+  let px0 = Math.floor((eMin - dem.ox) / L.res) - 1, px1 = Math.ceil((eMax - dem.ox) / L.res) + 1;
+  let py0 = Math.floor((dem.oy - nMax) / L.res) - 1, py1 = Math.ceil((dem.oy - nMin) / L.res) + 1;
+  px0 = Math.max(0, px0); py0 = Math.max(0, py0); px1 = Math.min(L.w, px1); py1 = Math.min(L.h, py1);
+
+  const out = new ImageData(TILE, TILE);
+  const o = out.data;
+  let data = null, ww = 0, wh = 0;
+  if (px1 > px0 && py1 > py0) {
+    const r = await L.image.readRasters({ window: [px0, py0, px1, py1], signal: signal });
+    data = r[0]; ww = px1 - px0; wh = py1 - py0;
+  }
+  const nod = dem.nodata, sc = dem.cfg.scale;
+  const sample = (fx, fy) => {
+    if (!data) return 0;
+    const x0 = Math.floor(fx), y0 = Math.floor(fy);
+    if (x0 < 0 || y0 < 0 || x0 + 1 >= ww || y0 + 1 >= wh) {
+      const cx = Math.min(ww - 1, Math.max(0, Math.round(fx))), cy = Math.min(wh - 1, Math.max(0, Math.round(fy)));
+      const v = data[cy * ww + cx];
+      return (v === nod || v < -1e30 || isNaN(v)) ? 0 : v * sc;
+    }
+    const tx = fx - x0, ty = fy - y0, i0 = y0 * ww + x0;
+    const a = data[i0], b = data[i0 + 1], c = data[i0 + ww], d = data[i0 + ww + 1];
+    if (a === nod || b === nod || c === nod || d === nod || a < -1e30 || b < -1e30 || c < -1e30 || d < -1e30) {
+      const v = data[Math.round(fy) * ww + Math.round(fx)];
+      return (v === nod || v < -1e30 || v === undefined) ? 0 : v * sc;
+    }
+    return ((a * (1 - tx) + b * tx) * (1 - ty) + (c * (1 - tx) + d * tx) * ty) * sc;
+  };
+  for (let r = 0; r < TILE; r++) {
+    const v = (r + 0.5) / TILE * G, j0 = Math.min(G - 1, Math.floor(v)), tv = v - j0;
+    for (let c = 0; c < TILE; c++) {
+      const u = (c + 0.5) / TILE * G, i0 = Math.min(G - 1, Math.floor(u)), tu = u - i0;
+      const k00 = j0 * (G + 1) + i0, k01 = k00 + 1, k10 = k00 + G + 1, k11 = k10 + 1;
+      const E = (gE[k00] * (1 - tu) + gE[k01] * tu) * (1 - tv) + (gE[k10] * (1 - tu) + gE[k11] * tu) * tv;
+      const N = (gN[k00] * (1 - tu) + gN[k01] * tu) * (1 - tv) + (gN[k10] * (1 - tu) + gN[k11] * tu) * tv;
+      const h = sample((E - dem.ox) / L.res - px0 - 0.5, (dem.oy - N) / L.res - py0 - 0.5);
+      const val = Math.max(0, h + 32768);
+      const p = (r * TILE + c) * 4;
+      o[p] = Math.floor(val / 256); o[p + 1] = Math.floor(val) % 256; o[p + 2] = Math.floor((val % 1) * 256); o[p + 3] = 255;
+    }
+  }
+  const cv = new OffscreenCanvas(TILE, TILE);
+  cv.getContext("2d").putImageData(out, 0, 0);
+  const blob = await cv.convertToBlob({ type: "image/png" });
+  return await blob.arrayBuffer();
+}
+
+// ---------------------------------------------------------------------------
+// WFS overlays: requested in Web Mercator cells at the layer's minzoom, deduplicated, merged
+// ---------------------------------------------------------------------------
+const layerState = new Map(); // type -> state
+
+function fixCoords(coords, mode) {
+  if (typeof coords[0] === "number") {
+    const [a, b] = coords;
+    if (mode === "merc") return merc2ll(a, b);
+    if (mode === "latlon") return [b, a];
+    return [a, b];
+  }
+  return coords.map((c) => fixCoords(c, mode));
+}
+function firstPos(g) {
+  let c = g.coordinates;
+  if (g.type === "GeometryCollection") return g.geometries.length ? firstPos(g.geometries[0]) : null;
+  while (c && typeof c[0] !== "number") c = c[0];
+  return c;
+}
+function normaliseGeometry(g) {
+  if (!g) return null;
+  if (g.type === "GeometryCollection") { g.geometries = g.geometries.map(normaliseGeometry).filter(Boolean); return g; }
+  const p = firstPos(g); if (!p) return null;
+  // Tasmania: lon ~144..149, lat ~-44..-39. Anything larger is Web Mercator metres.
+  const mode = Math.abs(p[0]) > 360 ? "merc" : (p[0] < 0 && p[1] > 100 ? "latlon" : "lonlat");
+  g.coordinates = fixCoords(g.coordinates, mode);
+  return g;
+}
+
+function cellBounds(z, x, y) {
+  const s = 2 * HALF / 2 ** z;
+  return [-HALF + x * s, HALF - (y + 1) * s, -HALF + (x + 1) * s, HALF - y * s];
+}
+
+function visibleCells(z) {
+  const b = map.getBounds();
+  const c = map.getCenter();
+  const s = 2 * HALF / 2 ** z;
+  const [x0m, y1m] = ll2merc(Math.max(b.getWest(), 140), Math.max(b.getSouth(), -45));
+  const [x1m, y0m] = ll2merc(Math.min(b.getEast(), 152), Math.min(b.getNorth(), -38));
+  const [cx, cy] = ll2merc(c.lng, c.lat);
+  const cells = [];
+  for (let x = Math.floor((x0m + HALF) / s); x <= Math.floor((x1m + HALF) / s); x++)
+    for (let y = Math.floor((HALF - y0m) / s); y <= Math.floor((HALF - y1m) / s); y++) {
+      const bb = cellBounds(z, x, y);
+      const d = Math.hypot((bb[0] + bb[2]) / 2 - cx, (bb[1] + bb[3]) / 2 - cy);
+      cells.push({ x, y, d });
+    }
+  cells.sort((a, b2) => a.d - b2.d);
+  return cells.slice(0, MAX_CELLS);
+}
+
+async function fetchCell(st, z, x, y) {
+  const bb = cellBounds(z, x, y);
+  let truncated = false, n = 0;
+  // Two ways of asking for the cell: Web Mercator bbox and output (unambiguous axis order), or a
+  // lat/lon EPSG:4326 bbox as a fallback. Either way normaliseGeometry() sorts out the axis order.
+  const [cw, cs, ce, cn] = [merc2ll(bb[0], bb[1]), merc2ll(bb[2], bb[3])].flat();
+  const variants = [
+    { srsName: "urn:ogc:def:crs:EPSG::3857", bbox: bb.join(",") + ",urn:ogc:def:crs:EPSG::3857" },
+    { bbox: [cs, cw, cn, ce].join(",") + ",urn:ogc:def:crs:EPSG::4326" }
+  ];
+  for (let page = 0; page < MAX_PAGES; page++) {
+    let gj = null, lastErr = null;
+    for (let vi = st.variant || 0; vi < variants.length && !gj; vi++) {
+      const q = new URLSearchParams(Object.assign({
+        service: "WFS", version: "2.0.0", request: "GetFeature",
+        typeNames: WFS_NS + st.def.type, outputFormat: "GEOJSON",
+        count: String(PAGE_SIZE), startIndex: String(page * PAGE_SIZE)
+      }, variants[vi]));
+      const res = await fetch(WFS_URL + "?" + q.toString());
+      const text = await res.text();
+      try {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        gj = JSON.parse(text);
+        if (!Array.isArray(gj.features)) throw new Error("not GeoJSON");
+        st.variant = vi;
+      } catch (err) { gj = null; lastErr = text.includes("Exception") ? new Error("WFS exception") : err; }
+    }
+    if (!gj) throw lastErr;
+    const feats = gj.features || [];
+    for (const f of feats) {
+      const id = f.id ?? f.properties?.OBJECTID ?? f.properties?.objectid ?? JSON.stringify(f.geometry).slice(0, 200);
+      if (st.features.has(id)) continue;
+      f.geometry = normaliseGeometry(f.geometry);
+      if (f.geometry) st.features.set(id, f);
+    }
+    n += feats.length;
+    if (feats.length < PAGE_SIZE) break;
+    if (page === MAX_PAGES - 1) truncated = true;
+  }
+  return { n, truncated };
+}
+
+function overlaySourceData(st) {
+  return { type: "FeatureCollection", features: Array.from(st.features.values()) };
+}
+
+async function refreshLayer(st) {
+  const z = map.getZoom();
+  if (!st.enabled) { setChip(st, "off", "idle"); return; }
+  if (!wfsAllowed) { setChip(st, "needs network", "bad"); return; }
+  if (z < st.def.minzoom) { setChip(st, "zoom " + st.def.minzoom + "+", "idle"); return; }
+  const pz = st.def.minzoom;
+  const cells = visibleCells(pz).filter((c) => !st.cells.has(pz + "/" + c.x + "/" + c.y));
+  if (!cells.length) { renderChip(st); return; }
+  st.pending += cells.length;
+  renderChip(st);
+  await Promise.all(cells.map(async (c) => {
+    const key = pz + "/" + c.x + "/" + c.y;
+    st.cells.set(key, "loading");
+    try {
+      const r = await fetchCell(st, pz, c.x, c.y);
+      st.cells.set(key, r.truncated ? "truncated" : "done");
+      if (r.truncated) st.truncated = true;
+      st.error = null;
+    } catch (e) {
+      st.cells.delete(key);
+      st.error = e.message === "Failed to fetch" ? "blocked" : e.message;
+    } finally {
+      st.pending--;
+      scheduleSetData(st);
+      renderChip(st);
+    }
+  }));
+}
+
+function scheduleSetData(st) {
+  if (st.timer) return;
+  st.timer = setTimeout(() => {
+    st.timer = null;
+    const src = map.getSource("wfs-" + st.def.type);
+    if (src) src.setData(overlaySourceData(st));
+  }, 150);
+}
+
+function renderChip(st) {
+  if (st.error && !st.features.size) return setChip(st, st.error, "bad");
+  if (st.pending) return setChip(st, "paging " + st.pending, "warn");
+  const n = st.features.size.toLocaleString();
+  setChip(st, st.truncated ? n + "+" : n, st.truncated ? "warn" : "ok");
+}
+function setChip(st, text, cls) { st.chip.textContent = text; st.chip.className = "chip " + cls; }
+
+function addOverlayLayers(st) {
+  const id = "wfs-" + st.def.type, col = st.def.color;
+  if (map.getSource(id)) return;
+  map.addSource(id, { type: "geojson", data: overlaySourceData(st) });
+  const vis = st.enabled ? "visible" : "none";
+  const k = st.def.kind;
+  const ids = [];
+  if (k === "fill") {
+    map.addLayer({ id: id + "-f", type: "fill", source: id, layout: { visibility: vis }, paint: { "fill-color": col, "fill-opacity": 0.22 } });
+    map.addLayer({ id: id + "-l", type: "line", source: id, layout: { visibility: vis }, paint: { "line-color": col, "line-width": 1.2 } });
+    ids.push(id + "-f", id + "-l");
+  } else if (k === "line") {
+    map.addLayer({ id: id + "-l", type: "line", source: id, layout: { visibility: vis, "line-join": "round" }, paint: { "line-color": col, "line-width": ["interpolate", ["linear"], ["zoom"], 12, 0.8, 17, 2.4] } });
+    ids.push(id + "-l");
+  } else if (k === "circle") {
+    map.addLayer({ id: id + "-c", type: "circle", source: id, layout: { visibility: vis }, paint: { "circle-color": col, "circle-radius": 3.5, "circle-stroke-color": "#fff", "circle-stroke-width": 1 } });
+    ids.push(id + "-c");
+  } else if (k === "symbol") {
+    map.addLayer({ id: id + "-c", type: "circle", source: id, layout: { visibility: vis }, paint: { "circle-color": col, "circle-radius": 2.5 } });
+    ids.push(id + "-c");
+  } else { // generic: everything
+    map.addLayer({ id: id + "-f", type: "fill", source: id, filter: ["==", ["geometry-type"], "Polygon"], layout: { visibility: vis }, paint: { "fill-color": col, "fill-opacity": 0.2 } });
+    map.addLayer({ id: id + "-l", type: "line", source: id, layout: { visibility: vis }, paint: { "line-color": col, "line-width": 1.4 } });
+    map.addLayer({ id: id + "-c", type: "circle", source: id, filter: ["==", ["geometry-type"], "Point"], layout: { visibility: vis }, paint: { "circle-color": col, "circle-radius": 3.5 } });
+    ids.push(id + "-f", id + "-l", id + "-c");
+  }
+  st.layerIds = ids;
+  ids.forEach((lid) => {
+    map.on("click", lid, (e) => showPopup(st, e));
+    map.on("mouseenter", lid, () => { map.getCanvas().style.cursor = "pointer"; });
+    map.on("mouseleave", lid, () => { map.getCanvas().style.cursor = ""; });
+  });
+}
+
+function showPopup(st, e) {
+  const f = e.features[0];
+  const rows = Object.entries(f.properties || {})
+    .filter(([k, v]) => v !== null && v !== "" && v !== "null" && !/^(SHAPE|Shape|GlobalID|GmlID)/.test(k))
+    .slice(0, 14)
+    .map(([k, v]) => "<tr><td>" + esc(k) + "</td><td>" + esc(v) + "</td></tr>").join("");
+  new maplibregl.Popup({ maxWidth: "320px" }).setLngLat(e.lngLat)
+    .setHTML('<div class="pop"><h3>' + esc(st.def.label) + "</h3><table>" + rows + "</table></div>").addTo(map);
+}
+
+function addOverlayControl(def, enabled) {
+  if (layerState.has(def.type)) return layerState.get(def.type);
+  const row = document.createElement("label");
+  row.className = "layer";
+  const cb = document.createElement("input");
+  cb.type = "checkbox"; cb.checked = enabled; cb.id = "ov-" + def.type.replace(/[^A-Za-z0-9_-]/g, "_");
+  const name = document.createElement("span"); name.className = "name";
+  const sw = document.createElement("span"); sw.className = "swatch"; sw.style.background = def.color;
+  name.append(sw, document.createTextNode(def.label));
+  const chip = document.createElement("span"); chip.className = "chip idle"; chip.textContent = "off";
+  row.append(cb, name, chip);
+  $("layers").append(row);
+  const st = { def, enabled, chip, cells: new Map(), features: new Map(), pending: 0, truncated: false, error: null, timer: null, layerIds: [] };
+  layerState.set(def.type, st);
+  cb.addEventListener("change", () => {
+    st.enabled = cb.checked;
+    st.layerIds.forEach((lid) => map.setLayoutProperty(lid, "visibility", st.enabled ? "visible" : "none"));
+    refreshLayer(st);
+  });
+  if (map.loaded() || map.isStyleLoaded()) addOverlayLayers(st);
+  return st;
+}
+
+// ---------------------------------------------------------------------------
+// Map
+// ---------------------------------------------------------------------------
+let map, lastLevel = 0, wfsAllowed = true;
+const RELIEF = ["interpolate", ["linear"], ["elevation"],
+  -50, "#9fb7bf", 0.5, "#a9c3c7", 1, "#c9d8b6", 80, "#b7cd98", 250, "#93b07a",
+  500, "#7f9a64", 800, "#a39a6e", 1100, "#b9a88c", 1300, "#d8d0c4", 1620, "#f2efea"];
+
+function demProtocol(params, abort) {
+  const m = params.url.match(/(\d+)\/(\d+)\/(\d+)$/);
+  return demTile(+m[1], +m[2], +m[3], abort.signal).then((data) => ({ data }));
+}
+
+function buildMap() {
+  const cfg = dem.cfg;
+  const start = dem.live
+    ? { center: [147.262, -42.902], zoom: 13.2, pitch: 62, bearing: -38 }
+    : { center: [147.262, -42.902], zoom: 13.2, pitch: 62, bearing: -38 };
+  maplibregl.addProtocol("cogdem", demProtocol);
+  map = new maplibregl.Map({
+    container: "map",
+    style: {
+      version: 8,
+      sources: {
+        terrain: { type: "raster-dem", tiles: ["cogdem://t/{z}/{x}/{y}"], tileSize: TILE, encoding: "terrarium", minzoom: 5, maxzoom: dem.live ? 15 : 14, bounds: cfg.bounds },
+        shade: { type: "raster-dem", tiles: ["cogdem://s/{z}/{x}/{y}"], tileSize: TILE, encoding: "terrarium", minzoom: 5, maxzoom: dem.live ? 16 : 15, bounds: cfg.bounds },
+        ortho: { type: "raster", tiles: [LIST_TILES.ortho], tileSize: 256, maxzoom: 19, attribution: "Orthophoto: The LIST" },
+        topo: { type: "raster", tiles: [LIST_TILES.topo], tileSize: 256, maxzoom: 18, attribution: "Topographic: The LIST" }
+      },
+      layers: [
+        { id: "bg", type: "background", paint: { "background-color": "#a9c3c7" } },
+        { id: "relief", type: "color-relief", source: "shade", paint: { "color-relief-color": RELIEF } },
+        { id: "ortho", type: "raster", source: "ortho", layout: { visibility: "none" } },
+        { id: "topo", type: "raster", source: "topo", layout: { visibility: "none" } },
+        { id: "hillshade", type: "hillshade", source: "shade", paint: { "hillshade-exaggeration": 0.55, "hillshade-shadow-color": "#24312a", "hillshade-highlight-color": "#ffffff", "hillshade-illumination-direction": 315 } }
+      ],
+      terrain: { source: "terrain", exaggeration: 1.3 },
+      sky: { "sky-color": "#a8c3d6", "horizon-color": "#e6ece4", "fog-color": "#dfe6de", "sky-horizon-blend": 0.6, "horizon-fog-blend": 0.6, "fog-ground-blend": 0.3 }
+    },
+    ...start,
+    maxPitch: 80,
+    minZoom: dem.live ? 6 : 11,
+    maxBounds: dem.live ? [[141, -45.5], [151, -38]] : [[cfg.bounds[0] - 0.08, cfg.bounds[1] - 0.06], [cfg.bounds[2] + 0.08, cfg.bounds[3] + 0.06]],
+    attributionControl: { compact: true, customAttribution: "DEM and overlays: The LIST &copy; State of Tasmania" }
+  });
+  window.__map = map;
+  map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), "top-right");
+  map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-right");
+
+  map.on("load", () => {
+    layerState.forEach((st) => addOverlayLayers(st));
+    onView();
+  });
+  let t = null;
+  map.on("moveend", () => { clearTimeout(t); t = setTimeout(onView, 250); });
+  map.on("move", updateGauge);
+  map.on("dataloading", () => { $("busy").hidden = false; });
+  map.on("idle", () => { $("busy").hidden = true; });
+}
+
+function updateGauge() {
+  const z = map.getZoom();
+  $("g-zoom").textContent = z.toFixed(1);
+  const lat = map.getCenter().lat;
+  const groundRes = 2 * HALF / 2 ** Math.floor(z + 0.5) / TILE * Math.cos(lat * Math.PI / 180);
+  const li = pickLevel(groundRes);
+  const L = dem.levels[li];
+  $("g-level").textContent = li === 0 ? "full resolution" : "overview 1:" + Math.round(dem.levels[0].w / L.w);
+  $("g-res").textContent = L.res.toFixed(L.res < 10 ? 1 : 0) + " m";
+  const lad = $("ladder").children;
+  for (let i = 0; i < lad.length; i++) lad[i].className = i === li ? "on" : "";
+}
+
+function onView() {
+  updateGauge();
+  layerState.forEach((st) => refreshLayer(st));
+}
+
+// ---------------------------------------------------------------------------
+// Panel wiring
+// ---------------------------------------------------------------------------
+function setBase(which) {
+  ["relief", "ortho", "topo"].forEach((b) => $("base-" + b).setAttribute("aria-pressed", String(b === which)));
+  map.setLayoutProperty("ortho", "visibility", which === "ortho" ? "visible" : "none");
+  map.setLayoutProperty("topo", "visibility", which === "topo" ? "visible" : "none");
+  map.setLayoutProperty("relief", "visibility", which === "relief" ? "visible" : "none");
+  map.setPaintProperty("hillshade", "hillshade-exaggeration", which === "relief" ? 0.55 : 0.2);
+}
+
+function wirePanel() {
+  ["relief", "ortho", "topo"].forEach((b) => $("base-" + b).addEventListener("click", () => setBase(b)));
+  $("exag").addEventListener("input", (e) => {
+    const v = +e.target.value; $("exag-out").textContent = v.toFixed(1) + "x";
+    map.setTerrain({ source: "terrain", exaggeration: v });
+  });
+  const sel = $("extra");
+  const curated = new Set(OVERLAYS.map((o) => o.type));
+  ALL_TYPES.filter((t) => !curated.has(t)).forEach((t) => {
+    const o = document.createElement("option"); o.value = t; o.textContent = t.replace(/_+/g, " ").trim(); sel.append(o);
+  });
+  const palette = ["#e8590c", "#0c8599", "#9c36b5", "#5f3dc4", "#2f9e44", "#c92a2a"];
+  let pi = 0;
+  $("extra-add").addEventListener("click", () => {
+    const t = sel.value; if (!t || layerState.has(t)) return;
+    const st = addOverlayControl({ type: t, label: t.replace(/_+/g, " ").trim(), kind: "any", minzoom: 14, color: palette[pi++ % palette.length] }, true);
+    refreshLayer(st);
+  });
+  $("toggle").addEventListener("click", () => {
+    const p = $("panel"); const c = p.classList.toggle("collapsed");
+    $("toggle").textContent = c ? "Show" : "Hide"; $("toggle").setAttribute("aria-expanded", String(!c));
+  });
+}
+
+async function probeWfs() {
+  try {
+    const q = "?service=WFS&version=2.0.0&request=GetFeature&typeNames=" + WFS_NS + "LIST_Local_Government_Areas&count=1&outputFormat=GEOJSON";
+    const r = await withTimeout(nativeFetch(WFS_URL + q), 12000);
+    return r.ok;
+  } catch (e) { return false; }
+}
+
+async function main() {
+  wirePanel();
+  $("busy").hidden = false; $("busy").textContent = "Opening DEM";
+  await initDem();
+  $("busy").textContent = "Loading";
+  $("ladder").style.gridTemplateColumns = "repeat(" + dem.levels.length + ", 1fr)";
+  dem.levels.forEach(() => $("ladder").append(document.createElement("i")));
+  const fmtRes = (r) => (r < 10 ? r.toFixed(0) : Math.round(r)) + " m";
+  $("cap-lo").textContent = fmtRes(dem.levels[0].res);
+  $("cap-hi").textContent = fmtRes(dem.levels[dem.levels.length - 1].res);
+  $("g-bytes").textContent = fmtBytes(bytesRead);
+  $("modeline").textContent = dem.cfg.label + ". LIST WFS layers page in for the view.";
+  const defaultsOn = new Set(["LIST_Transport_Segments", "LIST_Hydrographic_Lines", "LIST_Cadastral_Parcels"]);
+  buildMap();
+  OVERLAYS.forEach((d) => addOverlayControl(d, defaultsOn.has(d.type)));
+  wfsAllowed = await probeWfs();
+  const msgs = [];
+  if (!dem.live) msgs.push("This page cannot reach the statewide COG, so it is showing the bundled kunanyi / Hobart snapshot at 4 m.");
+  if (!wfsAllowed) msgs.push("LIST WFS (services.thelist.tas.gov.au) is unreachable from here, so overlays are off. Open the standalone file in a normal browser tab to page them in.");
+  if (!dem.live || !wfsAllowed) {
+    $("sandbox").hidden = false; $("sandbox").textContent = msgs.join(" ");
+  }
+  if (!wfsAllowed) { $("base-ortho").disabled = true; $("base-topo").disabled = true; $("extra-add").disabled = true; }
+  onView();
+}
+
+main().catch((e) => {
+  console.error(e);
+  $("sandbox").hidden = false;
+  $("sandbox").textContent = "Could not start: " + e.message;
+});
+})();
+</script>
