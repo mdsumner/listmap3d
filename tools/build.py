@@ -5,7 +5,8 @@ Run from the repo root after `npm install` (MapLibre's CSS is inlined from node_
     python3 tools/build.py
 
 Writes:
-  index.html                   MapLibre viewer, standalone (committed; also works on GitHub Pages)
+  index.html                   landing page linking both viewers (copied from src/index.html)
+  maplibre/index.html          MapLibre viewer, standalone (committed; also works on GitHub Pages)
   native/index.html            three.js native-CRS viewer, standalone (committed)
   out/listmap3d.html           body-only MapLibre page for publishing as a claude.ai artifact
   out/native.html              body-only native page for publishing as a claude.ai artifact
@@ -29,8 +30,11 @@ out.mkdir(exist_ok=True)
 
 css = (ROOT / "node_modules/maplibre-gl/dist/maplibre-gl.css").read_text()
 app = (ROOT / "src/app.html").read_text().replace("/*MAPLIBRE_CSS*/", css)
-(ROOT / "index.html").write_text(standalone(app))
+(ROOT / "maplibre").mkdir(exist_ok=True)
+(ROOT / "maplibre/index.html").write_text(standalone(app))
 (out / "listmap3d.html").write_text(app)
+
+(ROOT / "index.html").write_text((ROOT / "src/index.html").read_text())
 
 native = (ROOT / "src/native.html").read_text()
 (ROOT / "native").mkdir(exist_ok=True)
@@ -41,4 +45,4 @@ enc = base64.b64encode((ROOT / "data/kunanyi_4m_dm.tif").read_bytes()).decode()
 half = (len(enc) // 2) // 4 * 4
 (out / "kunanyi_4m_dm.b64.0.txt").write_text(enc[:half])
 (out / "kunanyi_4m_dm.b64.1.txt").write_text(enc[half:])
-print("built index.html, native/index.html and out/")
+print("built index.html, maplibre/index.html, native/index.html and out/")

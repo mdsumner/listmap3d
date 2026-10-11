@@ -6,12 +6,12 @@ A browser 3D viewer for the Tasmania 2 m DEM, with LIST open data WFS layers pag
 
 Two viewers, same data and overlays:
 
-- `index.html`: MapLibre GL. Terrain tiles are resampled from the COG into Web Mercator on the fly.
-- `native/index.html`: three.js. The view is in a projected CRS of your choice (MGA55 by default, the DEM's own grid),
+- `maplibre/`: MapLibre GL. Terrain tiles are resampled from the COG into Web Mercator on the fly.
+- `native/`: three.js. The view is in a projected CRS of your choice (MGA55 by default, the DEM's own grid),
   and terrain meshes are cut from the COG with no Web Mercator step. See [Native viewer](#native-viewer).
 
-Open either in a browser (double-click works, or serve the folder or turn on GitHub Pages). There is no build step
-needed to run them; scripts come from jsDelivr.
+The root `index.html` links both. Open any of them in a browser (double-click works, or serve the folder, or turn on
+GitHub Pages for `main` / root). There is no build step needed to run them; scripts come from jsDelivr.
 
 ## How it works
 
@@ -46,7 +46,7 @@ northing, easting. The viewer sends a lat, lon bbox and swaps coordinates back t
 
 ## Native viewer
 
-`native/index.html` drops MapLibre for three.js (WebGL) to get two things: freedom of CRS and less work per tile.
+`native/` drops MapLibre for three.js (WebGL) to get two things: freedom of CRS and less work per tile.
 
 - **Tiles in the view CRS.** A quadtree over the DEM's extent in the chosen projection. Each tile is a 128 x 128 mesh
   (plus skirts to hide cracks between levels) sampled from the COG overview whose pixel matches the tile's spacing.
@@ -76,7 +76,8 @@ different levels.
 
 | Path | What it is |
 | --- | --- |
-| `index.html` | The MapLibre viewer, built from `src/app.html` |
+| `index.html` | Landing page linking both viewers, copied from `src/index.html` |
+| `maplibre/index.html` | The MapLibre viewer, built from `src/app.html` |
 | `native/index.html` | The three.js native-CRS viewer, built from `src/native.html` |
 | `src/app.html`, `src/native.html` | Page sources; the build inlines the MapLibre CSS |
 | `tools/build.py` | Builds both pages, plus `out/` files for publishing as claude.ai artifacts (`npm install` first) |
