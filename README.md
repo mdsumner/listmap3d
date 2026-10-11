@@ -31,9 +31,9 @@ feature for its attributes. Any of the 56 layers can be added from the list unde
 The Orthophoto and Topographic buttons use the LIST Web Mercator tile caches
 (`rest/services/Basemaps/Orthophoto` and `Basemaps/Topographic`, `MapServer/tile/{z}/{y}/{x}`).
 
-**WFS quirk.** The default GEOJSON output is EPSG:4326 in **lat, lon** order, with a legacy `crs` member and the string
-`"null"` for empty fields. The viewer asks for EPSG:3857 output with a 3857 bbox first, falls back to a lat/lon 4326
-bbox, and detects the axis order from the coordinates either way.
+**WFS quirk.** LIST's ArcGIS WFS reads a bare `bbox` as EPSG:4326 in **lat, lon** order and returns GEOJSON in lat, lon
+order too, with a legacy `crs` member and the string `"null"` for empty fields. Asking for `srsName=EPSG:3857` gives
+northing, easting. The viewer sends a lat, lon bbox and swaps coordinates back to lon, lat before drawing.
 
 **Offline fallback.** If the live COG cannot be reached (for example in a sandboxed page), the viewer loads
 `data/kunanyi_4m_dm.tif`, a 4 m int16-decimetre COG of kunanyi / Hobart (12.5 MB), and limits the view to it.

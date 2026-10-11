@@ -406,9 +406,10 @@ function normaliseGeometry(g) {
   if (!g) return null;
   if (g.type === "GeometryCollection") { g.geometries = g.geometries.map(normaliseGeometry).filter(Boolean); return g; }
   const p = firstPos(g); if (!p) return null;
-  // Tasmania: lon ~144..149, lat ~-44..-39. Anything larger is Web Mercator metres.
-  const mode = Math.abs(p[0]) > 360 ? "merc" : (p[0] < 0 && p[1] > 100 ? "latlon" : "lonlat");
-  g.coordinates = fixCoords(g.coordinates, mode);
+  // Tasmania has positive x (lon ~144..149, or ~1.6e7 m) and negative y (lat ~-44..-39, or ~-5e6 m),
+  // so a negative first value means the axes arrived swapped. Values beyond 360 are Web Mercator metres.
+  if (p[0] < 0 && p[1] > 0) g.coordinates = fixCoords(g.coordinates, "latlon");
+  if (Math.abs(firstPos(g)[0]) > 360) g.coordinates = fixCoords(g.coordinates, "merc");
   return g;
 }
 
@@ -438,31 +439,24 @@ function visibleCells(z) {
 async function fetchCell(st, z, x, y) {
   const bb = cellBounds(z, x, y);
   let truncated = false, n = 0;
-  // Two ways of asking for the cell: Web Mercator bbox and output (unambiguous axis order), or a
-  // lat/lon EPSG:4326 bbox as a fallback. Either way normaliseGeometry() sorts out the axis order.
+  // LIST's ArcGIS WFS reads a bare bbox as EPSG:4326 in lat,lon order and answers in lat,lon too
+  // (asking for EPSG:3857 output gives northing,easting). normaliseGeometry() sorts out the axis order.
   const [cw, cs, ce, cn] = [merc2ll(bb[0], bb[1]), merc2ll(bb[2], bb[3])].flat();
-  const variants = [
-    { srsName: "urn:ogc:def:crs:EPSG::3857", bbox: bb.join(",") + ",urn:ogc:def:crs:EPSG::3857" },
-    { bbox: [cs, cw, cn, ce].join(",") + ",urn:ogc:def:crs:EPSG::4326" }
-  ];
   for (let page = 0; page < MAX_PAGES; page++) {
-    let gj = null, lastErr = null;
-    for (let vi = st.variant || 0; vi < variants.length && !gj; vi++) {
-      const q = new URLSearchParams(Object.assign({
-        service: "WFS", version: "2.0.0", request: "GetFeature",
-        typeNames: WFS_NS + st.def.type, outputFormat: "GEOJSON",
-        count: String(PAGE_SIZE), startIndex: String(page * PAGE_SIZE)
-      }, variants[vi]));
-      const res = await fetch(WFS_URL + "?" + q.toString());
-      const text = await res.text();
-      try {
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        gj = JSON.parse(text);
-        if (!Array.isArray(gj.features)) throw new Error("not GeoJSON");
-        st.variant = vi;
-      } catch (err) { gj = null; lastErr = text.includes("Exception") ? new Error("WFS exception") : err; }
-    }
-    if (!gj) throw lastErr;
+    const q = new URLSearchParams({
+      service: "WFS", version: "2.0.0", request: "GetFeature",
+      typeNames: WFS_NS + st.def.type, outputFormat: "GEOJSON",
+      bbox: [cs, cw, cn, ce].map((v) => v.toFixed(6)).join(","),
+      count: String(PAGE_SIZE), startIndex: String(page * PAGE_SIZE)
+    });
+    const res = await fetch(WFS_URL + "?" + q.toString());
+    const text = await res.text();
+    let gj;
+    try {
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      gj = JSON.parse(text);
+      if (!Array.isArray(gj.features)) throw new Error("not GeoJSON");
+    } catch (err) { throw text.includes("Exception") ? new Error("WFS exception") : err; }
     const feats = gj.features || [];
     for (const f of feats) {
       const id = f.id ?? f.properties?.OBJECTID ?? f.properties?.objectid ?? JSON.stringify(f.geometry).slice(0, 200);
